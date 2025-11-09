@@ -1,4 +1,3 @@
-#version 330
 // ========================================
 // FRAGMENT SHADER — Timeline modulaire FLEXIBLE
 // ========================================
