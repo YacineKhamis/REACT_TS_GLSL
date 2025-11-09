@@ -2,8 +2,6 @@
 // FRAGMENT SHADER — Timeline modulaire FLEXIBLE
 // ========================================
 
-out vec4 FragColor;
-
 // ------------ UNIFORMS MINIMALES ------------
 uniform vec2 uResolution;
 uniform float iTime;
@@ -418,5 +416,5 @@ void main() {
     col += renderEpicycloids(p, iTime, seg.intensities.z, seg.tintEpi, seg.shapeCounts.w);
     col += renderExpandingCircles(p, iTime, seg.intensities.w, seg.shapeCounts.y);
 
-    FragColor = vec4(col, 1.0);
+    gl_FragColor = vec4(col, 1.0);
 }
