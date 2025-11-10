@@ -4,7 +4,11 @@ import vertexShader from "../shaders/vertex.vert";
 import fragmentShader from "../shaders/fragment.frag";
 import { useFrame, useThree } from "@react-three/fiber";
 
-export default function Plane() {
+interface PlaneProps {
+  iTime: number;
+}
+
+export default function Plane({ iTime }: PlaneProps) {
   const plane = useRef<THREE.Mesh>(null);
   const { viewport } = useThree();
 
@@ -66,9 +70,8 @@ export default function Plane() {
   }, [size, uniforms.uResolution.value]);
 
   useFrame(({ clock }) => {
-    if (plane.current) {
-      (plane.current.material as THREE.ShaderMaterial).uniforms.iTime.value =
-        clock.getElapsedTime();
+    if (plane.current && plane.current.material) {
+      (plane.current.material as THREE.ShaderMaterial).uniforms.iTime.value = iTime;
     }
   });
 
