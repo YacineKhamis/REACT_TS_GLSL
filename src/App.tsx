@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { Canvas, useFrame } from "@react-three/fiber";
+import { Canvas } from "@react-three/fiber";
 import Plane from "./components/Plane";
 import PlaybackBar from "./components/PlaybackBar";
 import Sidebar from "./components/Sidebar";
