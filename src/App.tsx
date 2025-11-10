@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Canvas } from "@react-three/fiber";
 import * as THREE from "three";
 import Plane from "./components/Plane";
@@ -10,6 +10,7 @@ import SegmentControls from "./components/SegmentControls";
 const getInitialUniforms = () => ({
   iTime: { value: 0.0 },
   uResolution: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) },
+
   // Couleurs
   uBackgroundColor: { value: new THREE.Color(0x000000) },
   uCircleColor0: { value: new THREE.Color(0xff0000) },
@@ -19,6 +20,7 @@ const getInitialUniforms = () => ({
   uWaveColor1: { value: new THREE.Color(0x00ffff) },
   uWaveColor2: { value: new THREE.Color(0xff00ff) },
   uEpiColor0: { value: new THREE.Color(0xffffff) },
+
   uEpiColor1: { value: new THREE.Color(0xaaaaaa) },
   uExpandColor: { value: new THREE.Color(0xffa500) },
   // Counts
@@ -27,6 +29,7 @@ const getInitialUniforms = () => ({
   uShapeCountsSeg2: { value: new THREE.Vector4(3, 3, 3, 2) },
   uShapeCountsSeg3: { value: new THREE.Vector4(5, 5, 5, 3) },
   uShapeCountsSeg4: { value: new THREE.Vector4(3, 3, 3, 2) },
+
   uShapeCountsSeg5: { value: new THREE.Vector4(3, 0, 3, 2) },
   // Intensities
   uIntensitySeg0: { value: new THREE.Vector4(0.0, 0.1, 0.1, 0.0) },
@@ -35,6 +38,7 @@ const getInitialUniforms = () => ({
   uIntensitySeg3: { value: new THREE.Vector4(1.05, 0.15, 1.0, 1.05) },
   uIntensitySeg4: { value: new THREE.Vector4(0.9, 0.9, 0.9, 0.9) },
   uIntensitySeg5: { value: new THREE.Vector4(0.0, 0.1, 0.1, 0.0) },
+
   // Tints
   uTintCirc0: { value: new THREE.Color(0xffffff) },
   uTintCirc1: { value: new THREE.Color(0xffffff) },
@@ -45,6 +49,7 @@ const getInitialUniforms = () => ({
   uTintWave0: { value: new THREE.Color(0xffffff) },
   uTintWave1: { value: new THREE.Color(0xffffff) },
   uTintWave2: { value: new THREE.Color(0xffffff) },
+
   uTintWave3: { value: new THREE.Color(0xffffff) },
   uTintWave4: { value: new THREE.Color(0xffffff) },
   uTintWave5: { value: new THREE.Color(0xffffff) },
@@ -58,6 +63,7 @@ const getInitialUniforms = () => ({
 
 export default function App() {
   const [isPlaying, setIsPlaying] = useState(true);
+
   const [currentTime, setCurrentTime] = useState(0);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [uniforms, setUniforms] = useState(getInitialUniforms());
@@ -82,11 +88,22 @@ export default function App() {
   ];
 
   const segments = useMemo(() => {
+
     return SEG_START.map((start, index) => ({
       start: start,
       duration: SEG_DUR[index],
     }));
   }, []);
+
+  const handleSegmentDurationChange = useCallback((index: number, newDuration: number) => {
+    const newSegDur = [...SEG_DUR];
+    newSegDur[index] = newDuration;
+
+    // Update SEG_DUR array
+    setSegments(SEG_START.map((start, index) => ({
+      start: start, duration: newSegDur[index]
+    })));
+  }, [SEG_START, setSegments]);
 
   const totalDuration = useMemo(() => {
     return segments.reduce((sum, seg) => sum + seg.duration, 0);
@@ -155,7 +172,7 @@ export default function App() {
     <>
       <Sidebar isOpen={isSidebarOpen} onToggle={() => setIsSidebarOpen(!isSidebarOpen)} tabs={{
         "Projet": <ProjectControls onNew={handleNewProject} onSave={handleSaveProject} onLoad={handleLoadProject} />,
-        "Segments": <SegmentControls />,
+        "Segments": <SegmentControls segments={segments} onSegmentDurationChange={handleSegmentDurationChange} />,
       }} />
       <Canvas style={{ background: "black" }} orthographic camera={{ zoom: 1, position: [0, 0, 10] }}>
         <Plane iTime={currentTime} uniforms={uniforms} />
@@ -170,4 +187,5 @@ export default function App() {
       />
     </>
   );
+
 }
