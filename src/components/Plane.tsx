@@ -69,7 +69,7 @@ export default function Plane({ iTime }: PlaneProps) {
     uniforms.uResolution.value.set(size.width, size.height);
   }, [size, uniforms.uResolution.value]);
   
-  useFrame(({ clock }) => {
+  useFrame(({ }) => {
     if (plane.current && plane.current.material) {
       (plane.current.material as THREE.ShaderMaterial).uniforms.iTime.value = iTime;
     }
