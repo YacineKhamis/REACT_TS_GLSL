@@ -1,11 +1,12 @@
-import { useMemo, useRef } from "react";
+import { useMemo, useRef, useEffect } from "react";
 import * as THREE from "three";
 import vertexShader from "../shaders/vertex.vert";
 import fragmentShader from "../shaders/fragment.frag";
-import { useFrame } from "@react-three/fiber";
+import { useFrame, useThree } from "@react-three/fiber";
 
 export default function Plane() {
   const plane = useRef<THREE.Mesh>(null);
+  const { viewport } = useThree();
 
   const uniforms = useMemo(
     () => ({
@@ -59,18 +60,21 @@ export default function Plane() {
     []
   );
 
+  const { size } = useThree();
+  useEffect(() => {
+    uniforms.uResolution.value.set(size.width, size.height);
+  }, [size, uniforms.uResolution.value]);
+
   useFrame(({ clock }) => {
     if (plane.current) {
       (plane.current.material as THREE.ShaderMaterial).uniforms.iTime.value =
         clock.getElapsedTime();
-      (plane.current.material as THREE.ShaderMaterial).uniforms.uResolution.value.x = window.innerWidth;
-      (plane.current.material as THREE.ShaderMaterial).uniforms.uResolution.value.y = window.innerHeight;
     }
   });
 
   return (
-    <mesh ref={plane} rotation={[0, 0, 0]}>
-      <planeGeometry args={[4, 4, 64, 64]} />
+    <mesh ref={plane} scale={[viewport.width, viewport.height, 1]}>
+      <planeGeometry args={[1, 1, 64, 64]} />
       <shaderMaterial
         side={THREE.DoubleSide}
         vertexShader={vertexShader}
