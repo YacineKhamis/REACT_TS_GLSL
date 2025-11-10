@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useCallback } from 'react';
 
 interface SegmentControlsProps {
   segments: { start: number; duration: number }[];

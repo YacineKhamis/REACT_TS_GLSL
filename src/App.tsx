@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { Canvas } from "@react-three/fiber";
 import * as THREE from "three";
 import Plane from "./components/Plane";
@@ -67,43 +67,36 @@ export default function App() {
   const [currentTime, setCurrentTime] = useState(0);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [uniforms, setUniforms] = useState(getInitialUniforms());
-
-  // Replicate GLSL segment data in JS for UI
-  const SEG_START = [
-    0.00,     // Segment 0 : (0:00:00)
-    10.43,    // Segment 1 : (0:10:43)
-    125.21,   // Segment 2 : (02:05:21)
-    2963.47,  // Segment 3 : (49:23:47)
-    4633.04,  // Segment 4 : (77:13:04)
-    5958.26   // Segment 5 : (99:18:26)
-  ];
-
-  const SEG_DUR = [
-    10.43,    // Segment 0 : (0:00:00 → 0:10:43)
-    114.78,   // Segment 1 : (0:10:43 → 02:05:21)
-    2838.26,  // Segment 2 : (02:05:21 → 49:23:47)
-    1669.57,  // Segment 3 : (49:23:47 → 77:13:04)
-    1325.22,  // Segment 4 : (77:13:04 → 99:18:26)
-    10.43     // Segment 5 : (99:18:26 → 99:28:69)
-  ];
-
-  const segments = useMemo(() => {
-
-    return SEG_START.map((start, index) => ({
-      start: start,
-      duration: SEG_DUR[index],
-    }));
-  }, []);
+  
+  const [segments, setSegments] = useState(() => {
+    const initialDurations = [10.43, 114.78, 2838.26, 1669.57, 1325.22, 10.43];
+    let accumulatedTime = 0;
+    return initialDurations.map(duration => {
+      const start = accumulatedTime;
+      accumulatedTime += duration;
+      return { start, duration };
+    });
+  });
 
   const handleSegmentDurationChange = useCallback((index: number, newDuration: number) => {
-    const newSegDur = [...SEG_DUR];
-    newSegDur[index] = newDuration;
+    // Ensure duration is not negative
+    const safeNewDuration = Math.max(0, newDuration);
 
-    // Update SEG_DUR array
-    setSegments(SEG_START.map((start, index) => ({
-      start: start, duration: newSegDur[index]
-    })));
-  }, [SEG_START, setSegments]);
+    setSegments(currentSegments => {
+      const newSegments = [...currentSegments];
+      // Update the duration of the target segment
+      newSegments[index] = { ...newSegments[index], duration: safeNewDuration };
+
+      // Recalculate start times for all subsequent segments
+      let accumulatedTime = 0;
+      for (let i = 0; i < newSegments.length; i++) {
+        newSegments[i].start = accumulatedTime;
+        accumulatedTime += newSegments[i].duration;
+      }
+
+      return newSegments;
+    });
+  }, []);
 
   const totalDuration = useMemo(() => {
     return segments.reduce((sum, seg) => sum + seg.duration, 0);
