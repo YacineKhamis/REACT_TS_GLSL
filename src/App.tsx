@@ -76,6 +76,6 @@ export default function App() {
         totalDuration={totalDuration}
         segments={segments}
       />
-    </Canvas>
+    </>
   );
 }
