@@ -1,12 +1,15 @@
-import React from 'react';
+import React, { useState } from 'react';
 
 interface SidebarProps {
   isOpen: boolean;
   onToggle: () => void;
-  children?: React.ReactNode;
+  tabs: { [key: string]: React.ReactNode };
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle, children }) => {
+const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle, tabs }) => {
+  const tabKeys = Object.keys(tabs);
+  const [activeTab, setActiveTab] = useState(tabKeys[0]);
+
   return (
     <>
       <button
@@ -43,8 +46,31 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle, children }) => {
           overflowY: 'auto',
         }}
       >
-        <h2>Controls</h2>
-        {children}
+        <div style={{ display: 'flex', borderBottom: '1px solid #444', marginBottom: '20px' }}>
+          {tabKeys.map(tabName => (
+            <button
+              key={tabName}
+              onClick={() => setActiveTab(tabName)}
+              style={{
+                flex: 1,
+                padding: '10px',
+                backgroundColor: activeTab === tabName ? '#007bff' : 'transparent',
+                color: 'white',
+                border: 'none',
+                cursor: 'pointer',
+                borderBottom: activeTab === tabName ? '2px solid white' : '2px solid transparent',
+                transition: 'background-color 0.2s, border-bottom 0.2s',
+              }}
+            >
+              {tabName}
+            </button>
+          ))}
+        </div>
+        
+        {/* Affiche le contenu de l'onglet actif */}
+        <div key={activeTab}>
+          {tabs[activeTab]}
+        </div>
       </div>
     </>
   );
