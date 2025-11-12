@@ -1,3 +1,5 @@
+/* Basic global styles for the application. Setting width and height to
+   100% ensures the canvas fills the viewport. */
 html,
 body,
 #root {

@@ -9,6 +9,12 @@ interface PlaybackBarProps {
   segments: { start: number; duration: number }[];
 }
 
+/**
+ * Playback bar component. Displays the current time, allows scrubbing
+ * through the timeline and toggling play/pause. It also labels the
+ * current segment for clarity. For now this implementation mirrors
+ * the original behaviour closely.
+ */
 const PlaybackBar: React.FC<PlaybackBarProps> = ({
   currentTime,
   isPlaying,
@@ -30,7 +36,9 @@ const PlaybackBar: React.FC<PlaybackBarProps> = ({
     const minutes = Math.floor(time / 60);
     const seconds = Math.floor(time % 60);
     const milliseconds = Math.floor((time % 1) * 1000);
-    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}.${milliseconds.toString().padStart(3, '0')}`;
+    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}.${milliseconds
+      .toString()
+      .padStart(3, '0')}`;
   };
 
   const getCurrentSegmentName = (time: number) => {
@@ -51,29 +59,34 @@ const PlaybackBar: React.FC<PlaybackBarProps> = ({
   };
 
   return (
-    <div style={{
-      position: 'fixed',
-      bottom: 0,
-      left: 0,
-      width: '100%',
-      backgroundColor: 'rgba(0, 0, 0, 0.7)',
-      color: 'white',
-      padding: '10px 20px',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      zIndex: 1000,
-      boxSizing: 'border-box',
-    }}>
-      <button onClick={onPlayPause} style={{
-        padding: '8px 15px',
-        backgroundColor: '#007bff',
+    <div
+      style={{
+        position: 'fixed',
+        bottom: 0,
+        left: 0,
+        width: '100%',
+        backgroundColor: 'rgba(0, 0, 0, 0.7)',
         color: 'white',
-        border: 'none',
-        borderRadius: '5px',
-        cursor: 'pointer',
-        marginRight: '15px',
-      }}>
+        padding: '10px 20px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        zIndex: 1000,
+        boxSizing: 'border-box',
+      }}
+    >
+      <button
+        onClick={onPlayPause}
+        style={{
+          padding: '8px 15px',
+          backgroundColor: '#007bff',
+          color: 'white',
+          border: 'none',
+          borderRadius: '5px',
+          cursor: 'pointer',
+          marginRight: '15px',
+        }}
+      >
         {isPlaying ? 'Pause' : 'Play'}
       </button>
       <div style={{ flexGrow: 1, display: 'flex', alignItems: 'center' }}>
@@ -91,7 +104,9 @@ const PlaybackBar: React.FC<PlaybackBarProps> = ({
           onMouseUp={() => (isScrubbing.current = false)}
           style={{ flexGrow: 1, height: '5px', cursor: 'pointer' }}
         />
-        <span style={{ marginLeft: '15px', fontWeight: 'bold', minWidth: '100px', textAlign: 'right' }}>
+        <span
+          style={{ marginLeft: '15px', fontWeight: 'bold', minWidth: '100px', textAlign: 'right' }}
+        >
           {getCurrentSegmentName(displayTime)}
         </span>
       </div>

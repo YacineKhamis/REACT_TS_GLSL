@@ -6,6 +6,13 @@ interface SidebarProps {
   tabs: { [key: string]: React.ReactNode };
 }
 
+/**
+ * Sidebar component providing a toggleable drawer with tabbed content.
+ * When open, it slides in from the left and displays a set of tabs
+ * passed via props. The caller controls whether the sidebar is open or
+ * closed via the `isOpen` prop and toggles it through the `onToggle`
+ * callback.
+ */
 const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle, tabs }) => {
   const tabKeys = Object.keys(tabs);
   const [activeTab, setActiveTab] = useState(tabKeys[0]);
@@ -17,7 +24,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle, tabs }) => {
         style={{
           position: 'fixed',
           top: '20px',
-          left: isOpen ? '270px' : '20px', // Adjust based on sidebar width
+          left: isOpen ? '270px' : '20px',
           zIndex: 1001,
           padding: '10px 15px',
           backgroundColor: '#007bff',
@@ -34,7 +41,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle, tabs }) => {
         style={{
           position: 'fixed',
           top: 0,
-          left: isOpen ? 0 : '-250px', // Sidebar width
+          left: isOpen ? 0 : '-250px',
           width: '250px',
           height: '100%',
           backgroundColor: 'rgba(0, 0, 0, 0.8)',
@@ -66,11 +73,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle, tabs }) => {
             </button>
           ))}
         </div>
-        
-        {/* Affiche le contenu de l'onglet actif */}
-        <div key={activeTab}>
-          {tabs[activeTab]}
-        </div>
+        <div key={activeTab}>{tabs[activeTab]}</div>
       </div>
     </>
   );

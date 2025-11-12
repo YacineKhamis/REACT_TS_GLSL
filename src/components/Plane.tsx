@@ -1,22 +1,37 @@
-import { useRef, useEffect } from "react";
-import * as THREE from "three";
-import vertexShader from "../shaders/vertex.vert";
-import fragmentShader from "../shaders/fragment.frag";
-import { useFrame, useThree } from "@react-three/fiber";
+import { useRef, useEffect } from 'react';
+import * as THREE from 'three';
+import vertexShader from '../shaders/vertex.vert';
+import fragmentShader from '../shaders/fragment.frag';
+import { useFrame, useThree } from '@react-three/fiber';
 
 interface PlaneProps {
+  /** Current playback time in seconds. Propagated to the shader as
+   * iTime on each frame. */
   iTime: number;
+  /** Reference to the shader uniform object. Provided by App via
+   * useProjectState and updated when uniforms change. */
   uniforms: { [uniform: string]: THREE.IUniform<any> };
 }
 
+/**
+ * Renders a full screen plane that fills the viewport. A custom
+ * ShaderMaterial is applied to this mesh, using the supplied
+ * vertex and fragment shaders. Uniforms are passed through and
+ * updated on each frame. The plane scales itself to the current
+ * viewport size to maintain aspect ratio.
+ */
 export default function Plane({ iTime, uniforms }: PlaneProps) {
   const plane = useRef<THREE.Mesh>(null);
   const { viewport, size } = useThree();
 
+  // Update resolution uniform when the canvas size changes
   useEffect(() => {
-    uniforms.uResolution.value.set(size.width, size.height);
-  }, [size, uniforms.uResolution.value]);
-  
+    if (uniforms.uResolution) {
+      uniforms.uResolution.value.set(size.width, size.height);
+    }
+  }, [size, uniforms]);
+
+  // Update the iTime uniform every frame
   useFrame(() => {
     if (plane.current && plane.current.material) {
       (plane.current.material as THREE.ShaderMaterial).uniforms.iTime.value = iTime;
