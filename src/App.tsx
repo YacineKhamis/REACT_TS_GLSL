@@ -329,7 +329,16 @@ export default function App() {
           ),
         }}
       />
-      <Canvas style={{ background: 'black' }} orthographic camera={{ zoom: 1, position: [0, 0, 10] }}>
+      {/*
+       * Specify frameloop="always" so that the scene continues to render
+       * even if no useFrame callbacks are registered. Without this, React
+       * Three Fiber v8 defaults to a on-demand render loop, which stops
+       * updating the canvas when there are no subscribers. Because the
+       * Plane component no longer uses a useFrame callback to update the
+       * iTime uniform, we must keep the render loop running to animate
+       * continuously.
+       */
+      <Canvas frameloop="always" style={{ background: 'black' }} orthographic camera={{ zoom: 1, position: [0, 0, 10] }}>
         <Plane iTime={currentTime} uniforms={shaderUniforms} />
       </Canvas>
       <PlaybackBar

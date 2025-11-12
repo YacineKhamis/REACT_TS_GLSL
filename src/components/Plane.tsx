@@ -31,12 +31,16 @@ export default function Plane({ iTime, uniforms }: PlaneProps) {
     }
   }, [size, uniforms]);
 
-  // Update the iTime uniform every frame
-  useFrame(() => {
+  // Update the iTime uniform whenever the prop changes. This avoids
+  // capturing stale values in a useFrame callback.
+  useEffect(() => {
     if (plane.current && plane.current.material) {
-      (plane.current.material as THREE.ShaderMaterial).uniforms.iTime.value = iTime;
+      const mat = plane.current.material as THREE.ShaderMaterial;
+      if (mat.uniforms && mat.uniforms.iTime) {
+        mat.uniforms.iTime.value = iTime;
+      }
     }
-  });
+  }, [iTime]);
 
   return (
     <mesh ref={plane} scale={[viewport.width, viewport.height, 1]}>
