@@ -2,7 +2,7 @@ import { useRef, useEffect } from 'react';
 import * as THREE from 'three';
 import vertexShader from '../shaders/vertex.vert';
 import fragmentShader from '../shaders/fragment.frag';
-import { useFrame, useThree } from '@react-three/fiber';
+import { useThree } from '@react-three/fiber';
 
 interface PlaneProps {
   /** Current playback time in seconds. Propagated to the shader as
