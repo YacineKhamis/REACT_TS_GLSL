@@ -144,15 +144,19 @@ SegData getSegment(float t) {
     int cur = -1;
     float start = 0.0;
     float dur = 0.0;
-    // Find the segment corresponding to the current time. If none
-    // matches, fall back to the last segment.
-    for (int i = 0; i < uNumSegments; i++) {
+    // Utilise une borne fixe (MAX_SEGMENTS) pour respecter GLSL ES.
+    // On quitte la boucle dès que l’on dépasse uNumSegments ou que l’on a trouvé le segment.
+    for (int i = 0; i < MAX_SEGMENTS; i++) {
+        // Arrêter la recherche si on dépasse le nombre de segments valides.
+        if (i >= uNumSegments) {
+            break;
+        }
         float ss = uSegStart[i];
         float dd = uSegDur[i];
         if (t >= ss && t < ss + dd) {
-            cur = i;
+            cur   = i;
             start = ss;
-            dur = dd;
+            dur   = dd;
             break;
         }
     }
