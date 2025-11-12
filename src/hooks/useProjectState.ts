@@ -67,22 +67,31 @@ function recalcSegmentTimes(segments: SegmentConfig[]): SegmentConfig[] {
  * objects (shapeCounts and tints) are merged shallowly. Scalar and
  * vector properties override directly when defined.
  */
-function mergeUniformSets(base: UniformSet, override: Partial<UniformSet> | undefined): UniformSet;
-function mergeUniformSets(base: Partial<UniformSet>, override: Partial<UniformSet> | undefined): Partial<UniformSet>;
-function mergeUniformSets(base: Partial<UniformSet>, override: Partial<UniformSet> | undefined): Partial<UniformSet> {
+function mergeUniformSets(base: UniformSet, override: Partial<UniformSet> | undefined): UniformSet {
   if (!override) return base;
-    return {
-      ...base,
-      ...override,
-      shapeCounts: {
-        ...(base.shapeCounts ?? {}),
-        ...(override.shapeCounts ?? {}),
-      },
-      tints: {
-        ...(base.tints ?? {}),
-        ...(override.tints ?? {}),
-      },
-    };
+  // Remove keys with undefined values from the override. Without this,
+  // properties like `circlesIntensity: undefined` would override the
+  // base with an undefined, erasing the default value. We want
+  // undefined to behave as "no override".
+  const cleaned: any = {};
+  Object.keys(override).forEach(key => {
+    const val = (override as any)[key];
+    if (val !== undefined) {
+      cleaned[key] = val;
+    }
+  });
+  return {
+    ...base,
+    ...cleaned,
+    shapeCounts: {
+      ...(base.shapeCounts ?? {}),
+      ...((cleaned.shapeCounts ?? {}) as any),
+    },
+    tints: {
+      ...(base.tints ?? {}),
+      ...((cleaned.tints ?? {}) as any),
+    },
+  };
 }
 
 /**
@@ -209,9 +218,32 @@ export function useProjectState(initialConfig?: ProjectConfig) {
         const { uniformsOverride, ...rest } = seg;
         return rest;
       }
+      // Filter out undefined values from newOverrides so that they do not
+      // overwrite existing values with undefined. Nested objects are
+      // filtered separately.
+      const cleaned: any = {};
+      Object.keys(newOverrides).forEach(key => {
+        const val = (newOverrides as any)[key];
+        if (val !== undefined) cleaned[key] = val;
+      });
+      const mergedShapeCounts = {
+        ...(seg.uniformsOverride?.shapeCounts ?? {}),
+        ...((cleaned.shapeCounts ?? {}) as any),
+      };
+      const mergedTints = {
+        ...(seg.uniformsOverride?.tints ?? {}),
+        ...((cleaned.tints ?? {}) as any),
+      };
+      // Remove shapeCounts and tints from cleaned to avoid duplication in top level
+      const { shapeCounts, tints, ...restCleaned } = cleaned;
       return {
         ...seg,
-        uniformsOverride: mergeUniformSets(seg.uniformsOverride ?? {}, newOverrides),
+        uniformsOverride: {
+          ...seg.uniformsOverride,
+          ...restCleaned,
+          shapeCounts: mergedShapeCounts,
+          tints: mergedTints,
+        },
       } as SegmentConfig;
     });
     setSegments(segments);

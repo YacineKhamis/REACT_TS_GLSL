@@ -50,16 +50,24 @@ const BASE_COLOURS = {
  */
 function mergeUniformSets(base: UniformSet, override?: Partial<UniformSet>): UniformSet {
   if (!override) return base;
+  // Filter out undefined properties so that undefined does not override the base.
+  const cleaned: any = {};
+  Object.keys(override).forEach(key => {
+    const val = (override as any)[key];
+    if (val !== undefined) {
+      cleaned[key] = val;
+    }
+  });
   return {
     ...base,
-    ...override,
+    ...cleaned,
     shapeCounts: {
       ...(base.shapeCounts ?? {}),
-      ...(override.shapeCounts ?? {}),
+      ...((cleaned.shapeCounts ?? {}) as any),
     },
     tints: {
       ...(base.tints ?? {}),
-      ...(override.tints ?? {}),
+      ...((cleaned.tints ?? {}) as any),
     },
   };
 }
@@ -146,44 +154,86 @@ export default function App() {
    * the configuration or effective uniforms change.
    */
   const shaderUniforms = useMemo(() => {
+    /*
+     * Three.js expects uniform arrays declared with a fixed length in the
+     * shader (e.g. `uIntensitySeg[MAX_SEGMENTS]`) to be supplied with
+     * exactly that many elements. If we pass shorter arrays, Three.js
+     * will still attempt to iterate through the full `MAX_SEGMENTS` and
+     * call `toArray()` on each element. For indices beyond our actual
+     * segment count the values would be undefined, triggering errors at
+     * runtime. To avoid this, construct arrays of length MAX_SEGMENTS
+     * and populate unused entries with safe defaults.
+     */
+    const MAX_SEGMENTS = 20;
     const uniforms: any = {};
     // Time and resolution
     uniforms.iTime = { value: currentTime };
     uniforms.uResolution = { value: new THREE.Vector2(window.innerWidth, window.innerHeight) };
-    // Segment timing arrays
-    uniforms.uNumSegments = { value: config.segments.length };
-    uniforms.uSegStart = { value: new Float32Array(config.segments.map(s => s.startSec)) };
-    uniforms.uSegDur = { value: new Float32Array(config.segments.map(s => s.durationSec)) };
-    // Per‑segment uniform arrays
-    const intensities: THREE.Vector4[] = [];
-    const counts: THREE.Vector4[] = [];
-    const tintCirc: THREE.Color[] = [];
-    const tintWave: THREE.Color[] = [];
-    const tintEpi: THREE.Color[] = [];
-    config.segments.forEach(seg => {
-      const resolved = mergeUniformSets(config.uniforms, seg.uniformsOverride);
-      intensities.push(new THREE.Vector4(
-        resolved.circlesIntensity,
-        resolved.wavesIntensity,
-        resolved.epicycloidsIntensity,
-        resolved.expandingCirclesIntensity,
-      ));
-      const sc = { ...DEFAULT_SHAPE_COUNTS, ...(resolved.shapeCounts ?? {}) };
-      // Note: order matches shader expectation: x = circles, y = expand, z = waves, w = epis
-      counts.push(new THREE.Vector4(
-        sc.circles,
-        sc.expandingCircles,
-        sc.waves,
-        sc.epicycloids,
-      ));
-      const t = resolved.tints ?? {};
-      const circ = t.circles ?? DEFAULT_TINT;
-      const wave = t.waves ?? DEFAULT_TINT;
-      const epi = t.epicycloids ?? DEFAULT_TINT;
-      tintCirc.push(new THREE.Color(circ[0], circ[1], circ[2]));
-      tintWave.push(new THREE.Color(wave[0], wave[1], wave[2]));
-      tintEpi.push(new THREE.Color(epi[0], epi[1], epi[2]));
+    // Number of active segments
+    const numSegs = config.segments.length;
+    uniforms.uNumSegments = { value: numSegs };
+    // Segment start and duration arrays padded to MAX_SEGMENTS
+    const segStart = new Float32Array(MAX_SEGMENTS);
+    const segDur = new Float32Array(MAX_SEGMENTS);
+    config.segments.forEach((s, i) => {
+      segStart[i] = s.startSec;
+      segDur[i] = s.durationSec;
     });
+    // Fill remaining slots with zeros
+    for (let i = numSegs; i < MAX_SEGMENTS; i++) {
+      segStart[i] = segStart[Math.max(0, numSegs - 1)] ?? 0;
+      segDur[i] = segDur[Math.max(0, numSegs - 1)] ?? 0;
+    }
+    uniforms.uSegStart = { value: segStart };
+    uniforms.uSegDur = { value: segDur };
+    // Per‑segment uniform arrays padded to MAX_SEGMENTS
+    const intensities: THREE.Vector4[] = new Array(MAX_SEGMENTS);
+    const counts: THREE.Vector4[] = new Array(MAX_SEGMENTS);
+    const tintCirc: THREE.Color[] = new Array(MAX_SEGMENTS);
+    const tintWave: THREE.Color[] = new Array(MAX_SEGMENTS);
+    const tintEpi: THREE.Color[] = new Array(MAX_SEGMENTS);
+    for (let i = 0; i < MAX_SEGMENTS; i++) {
+      if (i < numSegs) {
+        const seg = config.segments[i];
+        const resolved = mergeUniformSets(config.uniforms, seg.uniformsOverride);
+        intensities[i] = new THREE.Vector4(
+          resolved.circlesIntensity,
+          resolved.wavesIntensity,
+          resolved.epicycloidsIntensity,
+          resolved.expandingCirclesIntensity,
+        );
+        const sc = { ...DEFAULT_SHAPE_COUNTS, ...(resolved.shapeCounts ?? {}) };
+        counts[i] = new THREE.Vector4(
+          sc.circles,
+          sc.expandingCircles,
+          sc.waves,
+          sc.epicycloids,
+        );
+        const t = resolved.tints ?? {};
+        const circ = t.circles ?? DEFAULT_TINT;
+        const wave = t.waves ?? DEFAULT_TINT;
+        const epi = t.epicycloids ?? DEFAULT_TINT;
+        tintCirc[i] = new THREE.Color(circ[0], circ[1], circ[2]);
+        tintWave[i] = new THREE.Color(wave[0], wave[1], wave[2]);
+        tintEpi[i] = new THREE.Color(epi[0], epi[1], epi[2]);
+      } else {
+        // For unused slots, replicate the last valid segment or use safe defaults
+        if (numSegs > 0) {
+          intensities[i] = intensities[numSegs - 1].clone();
+          counts[i] = counts[numSegs - 1].clone();
+          tintCirc[i] = tintCirc[numSegs - 1].clone();
+          tintWave[i] = tintWave[numSegs - 1].clone();
+          tintEpi[i] = tintEpi[numSegs - 1].clone();
+        } else {
+          // If no segments are defined (should not happen), use zeros and white tints
+          intensities[i] = new THREE.Vector4(0, 0, 0, 0);
+          counts[i] = new THREE.Vector4(0, 0, 0, 0);
+          tintCirc[i] = new THREE.Color(1, 1, 1);
+          tintWave[i] = new THREE.Color(1, 1, 1);
+          tintEpi[i] = new THREE.Color(1, 1, 1);
+        }
+      }
+    }
     uniforms.uIntensitySeg = { value: intensities };
     uniforms.uShapeCountsSeg = { value: counts };
     uniforms.uTintCircSeg = { value: tintCirc };
