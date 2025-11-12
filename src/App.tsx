@@ -337,7 +337,7 @@ export default function App() {
        * Plane component no longer uses a useFrame callback to update the
        * iTime uniform, we must keep the render loop running to animate
        * continuously.
-       */
+       */}
       <Canvas frameloop="always" style={{ background: 'black' }} orthographic camera={{ zoom: 1, position: [0, 0, 10] }}>
         <Plane iTime={currentTime} uniforms={shaderUniforms} />
       </Canvas>
