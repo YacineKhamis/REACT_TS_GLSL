@@ -67,6 +67,8 @@ function recalcSegmentTimes(segments: SegmentConfig[]): SegmentConfig[] {
  * objects (shapeCounts and tints) are merged shallowly. Scalar and
  * vector properties override directly when defined.
  */
+function mergeUniformSets(base: UniformSet, override: Partial<UniformSet> | undefined): UniformSet;
+function mergeUniformSets(base: Partial<UniformSet>, override: Partial<UniformSet> | undefined): Partial<UniformSet>;
 function mergeUniformSets(base: Partial<UniformSet>, override: Partial<UniformSet> | undefined): Partial<UniformSet> {
   if (!override) return base;
     return {
