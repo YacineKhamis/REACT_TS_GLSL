@@ -51,10 +51,14 @@ export interface UniformSet {
    * propagate these values into the shader's uShapeCountsSeg* uniforms.
    */
   shapeCounts?: {
-    circles: number;
-    waves: number;
-    epicycloids: number;
-    expandingCircles: number;
+    /** Nombre de cercles à dessiner. Si non défini, la valeur par défaut est utilisée. */
+    circles?: number;
+    /** Nombre de vagues à dessiner. Si non défini, la valeur par défaut est utilisée. */
+    waves?: number;
+    /** Nombre d’épicycloïdes à dessiner. Si non défini, la valeur par défaut est utilisée. */
+    epicycloids?: number;
+    /** Nombre de cercles expansifs à dessiner. Si non défini, la valeur par défaut est utilisée. */
+    expandingCircles?: number;
   };
   /**
    * Optional tints for each shape category. When undefined, the default
@@ -62,10 +66,15 @@ export interface UniformSet {
    * normalised RGB triples.
    */
   tints?: {
+    /** Teinte appliquée au fond. Si non défini, aucun effet. */
     bg?: UniformVec3;
+    /** Teinte appliquée aux cercles. Si non défini, aucun effet. */
     circles?: UniformVec3;
+    /** Teinte appliquée aux vagues. Si non défini, aucun effet. */
     waves?: UniformVec3;
+    /** Teinte appliquée aux épicycloïdes. Si non défini, aucun effet. */
     epicycloids?: UniformVec3;
+    /** Teinte appliquée aux cercles expansifs. Si non défini, aucun effet. */
     expandingCircles?: UniformVec3;
   };
 }

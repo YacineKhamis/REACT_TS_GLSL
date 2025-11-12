@@ -54,11 +54,11 @@ function mergeUniformSets(base: UniformSet, override?: Partial<UniformSet>): Uni
     ...base,
     ...override,
     shapeCounts: {
-      ...base.shapeCounts,
+      ...(base.shapeCounts ?? {}),
       ...(override.shapeCounts ?? {}),
     },
     tints: {
-      ...base.tints,
+      ...(base.tints ?? {}),
       ...(override.tints ?? {}),
     },
   };

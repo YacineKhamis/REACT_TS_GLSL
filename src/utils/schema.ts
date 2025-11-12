@@ -13,10 +13,11 @@ import type { ProjectConfig, UniformSet } from '../types/config';
 const uniformVec3Schema = z.tuple([z.number(), z.number(), z.number()]);
 
 const shapeCountsSchema = z.object({
-  circles: z.number(),
-  waves: z.number(),
-  epicycloids: z.number(),
-  expandingCircles: z.number(),
+  // Les clés sont optionnelles pour permettre des overrides partiels.
+  circles: z.number().optional(),
+  waves: z.number().optional(),
+  epicycloids: z.number().optional(),
+  expandingCircles: z.number().optional(),
 });
 
 const tintsSchema = z.object({
@@ -27,9 +28,10 @@ const tintsSchema = z.object({
   expandingCircles: uniformVec3Schema.optional(),
 });
 
-// UniformSet schema. Uses partial where appropriate to support
-// overrides.
-const uniformSetSchema: z.ZodType<UniformSet> = z.object({
+// UniformSet schema. Nous n'annotons plus explicitement le type afin
+// de garder les méthodes Zod (comme .partial()) disponibles. Les
+// champs shapeCounts et tints sont eux-mêmes optionnels.
+const uniformSetSchema = z.object({
   backgroundColor: uniformVec3Schema,
   circlesIntensity: z.number(),
   wavesIntensity: z.number(),

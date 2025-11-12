@@ -71,7 +71,7 @@ export const UniformControls: React.FC<UniformControlsProps> = ({ uniforms, onCh
     onChange({
       ...uniforms,
       shapeCounts: {
-        ...uniforms.shapeCounts,
+        ...(uniforms.shapeCounts ?? {}),
         [shape]: nextCount,
       },
     } as UniformSet);
@@ -88,7 +88,7 @@ export const UniformControls: React.FC<UniformControlsProps> = ({ uniforms, onCh
     onChange({
       ...uniforms,
       tints: {
-        ...uniforms.tints,
+        ...(uniforms.tints ?? {}),
         [shape]: nextVec,
       },
     } as UniformSet);

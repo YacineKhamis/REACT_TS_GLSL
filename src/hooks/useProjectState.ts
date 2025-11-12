@@ -69,18 +69,18 @@ function recalcSegmentTimes(segments: SegmentConfig[]): SegmentConfig[] {
  */
 function mergeUniformSets(base: UniformSet, override: Partial<UniformSet> | undefined): UniformSet {
   if (!override) return base;
-  return {
-    ...base,
-    ...override,
-    shapeCounts: {
-      ...base.shapeCounts,
-      ...(override.shapeCounts ?? {}),
-    },
-    tints: {
-      ...base.tints,
-      ...(override.tints ?? {}),
-    },
-  };
+    return {
+      ...base,
+      ...override,
+      shapeCounts: {
+        ...(base.shapeCounts ?? {}),
+        ...(override.shapeCounts ?? {}),
+      },
+      tints: {
+        ...(base.tints ?? {}),
+        ...(override.tints ?? {}),
+      },
+    };
 }
 
 /**

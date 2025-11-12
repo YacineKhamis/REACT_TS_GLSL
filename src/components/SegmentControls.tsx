@@ -51,11 +51,11 @@ const SegmentControls: React.FC<SegmentControlsProps> = ({
       ...projectUniforms,
       ...overrides,
       shapeCounts: {
-        ...projectUniforms.shapeCounts,
+        ...(projectUniforms.shapeCounts ?? {}),
         ...(overrides.shapeCounts ?? {}),
       },
       tints: {
-        ...projectUniforms.tints,
+        ...(projectUniforms.tints ?? {}),
         ...(overrides.tints ?? {}),
       },
     };
