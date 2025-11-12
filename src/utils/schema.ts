@@ -7,7 +7,6 @@
  */
 
 import { z } from 'zod';
-import type { ProjectConfig, UniformSet } from '../types/config';
 
 // Primitive schemas
 const uniformVec3Schema = z.tuple([z.number(), z.number(), z.number()]);
@@ -60,6 +59,9 @@ export const projectConfigSchema = z.object({
   uniforms: uniformSetSchema,
   segments: z.array(segmentConfigSchema),
 });
+
+// Infer the ProjectConfig type from the schema
+export type ProjectConfig = z.infer<typeof projectConfigSchema>;
 
 /**
  * Parse an unknown JSON value into a ProjectConfig. Throws if the
