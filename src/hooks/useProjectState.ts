@@ -209,7 +209,7 @@ export function useProjectState(initialConfig?: ProjectConfig) {
       }
       return {
         ...seg,
-        uniformsOverride: { ...seg.uniformsOverride, ...newOverrides, shapeCounts: { ...(seg.uniformsOverride?.shapeCounts ?? {}), ...(newOverrides.shapeCounts ?? {}) }, tints: { ...(seg.uniformsOverride?.tints ?? {}), ...(newOverrides.tints ?? {}) } },
+        uniformsOverride: mergeUniformSets(seg.uniformsOverride ?? {}, newOverrides),
       } as SegmentConfig;
     });
     setSegments(segments);
