@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Canvas } from '@react-three/fiber';
 import * as THREE from 'three';
 import Plane from './components/Plane';
@@ -277,6 +277,12 @@ export default function App() {
       alert('Fichier JSON invalide ou incompatible.');
     }
   }, [loadProject]);
+
+  useEffect(() => {
+  console.log('Current time:', currentTime);
+  console.log('Is playing:', isPlaying);
+  console.log('Shader uniforms iTime:', shaderUniforms.iTime?.value);
+}, [currentTime, isPlaying, shaderUniforms]);
 
   return (
     <>
