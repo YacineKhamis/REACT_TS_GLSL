@@ -1,7 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Canvas } from '@react-three/fiber';
+import { useCallback, useMemo, useState } from 'react';
 import * as THREE from 'three';
-import Plane from './components/Plane';
+import ThreeScene from './components/ThreeScene';
 import PlaybackBar from './components/PlaybackBar';
 import Sidebar from './components/Sidebar';
 import ProjectControls from './components/ProjectControls';
@@ -10,24 +9,17 @@ import { useProjectState } from './hooks/useProjectState';
 import type { UniformSet } from './types/config';
 
 /**
- * Default counts used when no overrides are defined. These values
- * correspond loosely to the defaults in the original fragment shader
- * comments. Circles and waves both start with 3 instances, epicycloids
- * with 3, and expanding circles with 2.
+ * Default counts used when no overrides are defined.
  */
 const DEFAULT_SHAPE_COUNTS = { circles: 3, waves: 3, epicycloids: 2, expandingCircles: 2 };
 
 /**
- * Default tint used when none is specified. White means no tint and
- * therefore preserves the base colour defined in the shader.
+ * Default tint used when none is specified. White means no tint.
  */
 const DEFAULT_TINT: [number, number, number] = [1, 1, 1];
 
 /**
- * Base colours for the primitive shapes used in the shader. These
- * values mirror those set up in getInitialUniforms() in the original
- * implementation. Storing them outside of the component ensures they
- * are not recreated on every render.
+ * Base colours for the primitive shapes used in the shader.
  */
 const BASE_COLOURS = {
   circle0: new THREE.Color(0xff0000),
@@ -42,13 +34,10 @@ const BASE_COLOURS = {
 };
 
 /**
- * Merge a base uniform set with an optional overrides object. Nested
- * objects (shapeCounts and tints) are shallowly merged. Returns a new
- * object without mutating the inputs.
+ * Merge a base uniform set with an optional overrides object.
  */
 function mergeUniformSets(base: UniformSet, override?: Partial<UniformSet>): UniformSet {
   if (!override) return base;
-  // Filter out undefined properties so that undefined does not override the base.
   const cleaned: any = {};
   Object.keys(override).forEach(key => {
     const val = (override as any)[key];
@@ -70,12 +59,6 @@ function mergeUniformSets(base: UniformSet, override?: Partial<UniformSet>): Uni
   };
 }
 
-/**
- * Top‑level application component. It orchestrates the project state
- * hook, playback, uniform resolution and UI layout. All React state
- * and side effects are managed here; child components remain
- * presentational and communicate via callbacks.
- */
 export default function App() {
   const {
     config,
@@ -96,97 +79,64 @@ export default function App() {
     resolveUniformsForTime,
   } = useProjectState();
 
-  /**
-   * State controlling whether the sidebar (UI) is visible. Initially true.
-   * This drives the `isOpen` prop on the Sidebar component and is toggled
-   * by its button. Without this state, the Hide/Show UI button would
-   * never update because the prop was previously hard coded.
-   */
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
-  /**
-   * Toggle play/pause state. Bound to the playback bar's play/pause
-   * button.
-   */
   const handlePlayPause = useCallback(() => {
     setIsPlaying(prev => !prev);
   }, [setIsPlaying]);
 
-  /**
-   * Scrub to a specific time on the timeline. Invoked when the user
-   * interacts with the playback bar slider.
-   */
   const handleScrub = useCallback((time: number) => {
     setCurrentTime(time);
   }, [setCurrentTime]);
 
-  /**
-   * Compute the resolved uniform set for the current time. This uses
-   * the hook's resolver to merge global uniforms with any overrides on
-   * the active segment. Memoised by currentTime and config changes.
-   */
   const effectiveUniforms = useMemo(() => {
     return resolveUniformsForTime(currentTime);
   }, [resolveUniformsForTime, currentTime]);
 
-  /**
-   * Construct the uniforms object expected by THREE.ShaderMaterial.
-   * Each property is wrapped in an object with a `value` field so
-   * that the renderer can detect changes. Arrays of primitives or
-   * THREE.Vector types are passed directly; colours are converted to
-   * THREE.Color instances. This memoised computation runs whenever
-   * the configuration or effective uniforms change.
-   */
   const shaderUniforms = useMemo(() => {
-    /*
-     * Three.js expects uniform arrays declared with a fixed length in the
-     * shader (e.g. `uIntensitySeg[MAX_SEGMENTS]`) to be supplied with
-     * exactly that many elements. If we pass shorter arrays, Three.js
-     * will still attempt to iterate through the full `MAX_SEGMENTS` and
-     * call `toArray()` on each element. For indices beyond our actual
-     * segment count the values would be undefined, triggering errors at
-     * runtime. To avoid this, construct arrays of length MAX_SEGMENTS
-     * and populate unused entries with safe defaults.
-     */
     const MAX_SEGMENTS = 20;
     const uniforms: any = {};
+    
     // Time and resolution
     uniforms.iTime = { value: currentTime };
     uniforms.uResolution = { value: new THREE.Vector2(window.innerWidth, window.innerHeight) };
-    // Number of active segments
+    
     const numSegs = config.segments.length;
     uniforms.uNumSegments = { value: numSegs };
-    // Segment start and duration arrays padded to MAX_SEGMENTS
+    
     const segStart = new Float32Array(MAX_SEGMENTS);
     const segDur = new Float32Array(MAX_SEGMENTS);
     config.segments.forEach((s, i) => {
       segStart[i] = s.startSec;
       segDur[i] = s.durationSec;
     });
-    // Fill remaining slots with zeros or last valid values
+    
     for (let i = numSegs; i < MAX_SEGMENTS; i++) {
       segStart[i] = segStart[Math.max(0, numSegs - 1)] ?? 0;
       segDur[i] = segDur[Math.max(0, numSegs - 1)] ?? 0;
     }
+    
     uniforms.uSegStart = { value: segStart };
     uniforms.uSegDur = { value: segDur };
-    // Per‑segment uniform arrays padded to MAX_SEGMENTS
+    
     const intensities: THREE.Vector4[] = new Array(MAX_SEGMENTS);
     const counts: THREE.Vector4[] = new Array(MAX_SEGMENTS);
     const tintCirc: THREE.Color[] = new Array(MAX_SEGMENTS);
     const tintWave: THREE.Color[] = new Array(MAX_SEGMENTS);
     const tintEpi: THREE.Color[] = new Array(MAX_SEGMENTS);
+    
     for (let i = 0; i < MAX_SEGMENTS; i++) {
       if (i < numSegs) {
         const seg = config.segments[i];
         const resolved = mergeUniformSets(config.uniforms, seg.uniformsOverride);
+        
         intensities[i] = new THREE.Vector4(
           resolved.circlesIntensity,
           resolved.wavesIntensity,
           resolved.epicycloidsIntensity,
           resolved.expandingCirclesIntensity,
         );
-        // FIX: Utiliser les valeurs par défaut si shapeCounts n'est pas défini
+        
         const sc = { ...DEFAULT_SHAPE_COUNTS, ...(resolved.shapeCounts ?? {}) };
         counts[i] = new THREE.Vector4(
           sc.circles ?? DEFAULT_SHAPE_COUNTS.circles,
@@ -194,15 +144,16 @@ export default function App() {
           sc.waves ?? DEFAULT_SHAPE_COUNTS.waves,
           sc.epicycloids ?? DEFAULT_SHAPE_COUNTS.epicycloids,
         );
+        
         const t = resolved.tints ?? {};
         const circ = t.circles ?? DEFAULT_TINT;
         const wave = t.waves ?? DEFAULT_TINT;
         const epi = t.epicycloids ?? DEFAULT_TINT;
+        
         tintCirc[i] = new THREE.Color(circ[0], circ[1], circ[2]);
         tintWave[i] = new THREE.Color(wave[0], wave[1], wave[2]);
         tintEpi[i] = new THREE.Color(epi[0], epi[1], epi[2]);
       } else {
-        // For unused slots, replicate the last valid segment or use safe defaults
         if (numSegs > 0) {
           intensities[i] = intensities[numSegs - 1].clone();
           counts[i] = counts[numSegs - 1].clone();
@@ -210,7 +161,6 @@ export default function App() {
           tintWave[i] = tintWave[numSegs - 1].clone();
           tintEpi[i] = tintEpi[numSegs - 1].clone();
         } else {
-          // If no segments are defined (should not happen), use zeros and white tints
           intensities[i] = new THREE.Vector4(0, 0, 0, 0);
           counts[i] = new THREE.Vector4(
             DEFAULT_SHAPE_COUNTS.circles,
@@ -224,14 +174,21 @@ export default function App() {
         }
       }
     }
+    
     uniforms.uIntensitySeg = { value: intensities };
     uniforms.uShapeCountsSeg = { value: counts };
     uniforms.uTintCircSeg = { value: tintCirc };
     uniforms.uTintWaveSeg = { value: tintWave };
     uniforms.uTintEpiSeg = { value: tintEpi };
-    // Global colours: project background uses effective uniforms
-    uniforms.uBackgroundColor = { value: new THREE.Color(effectiveUniforms.backgroundColor[0], effectiveUniforms.backgroundColor[1], effectiveUniforms.backgroundColor[2]) };
-    // Base colours for shapes remain constant; reuse cached instances
+    
+    uniforms.uBackgroundColor = { 
+      value: new THREE.Color(
+        effectiveUniforms.backgroundColor[0], 
+        effectiveUniforms.backgroundColor[1], 
+        effectiveUniforms.backgroundColor[2]
+      ) 
+    };
+    
     uniforms.uCircleColor0 = { value: BASE_COLOURS.circle0 };
     uniforms.uCircleColor1 = { value: BASE_COLOURS.circle1 };
     uniforms.uCircleColor2 = { value: BASE_COLOURS.circle2 };
@@ -241,14 +198,10 @@ export default function App() {
     uniforms.uEpiColor0 = { value: BASE_COLOURS.epi0 };
     uniforms.uEpiColor1 = { value: BASE_COLOURS.epi1 };
     uniforms.uExpandColor = { value: BASE_COLOURS.expand };
+    
     return uniforms;
   }, [config.segments, config.uniforms, effectiveUniforms, currentTime]);
 
-  /**
-   * Handle saving the project. Serialises the current configuration
-   * using the hook's helper and triggers a file download with a
-   * timestamped filename. Errors are logged to the console.
-   */
   const handleSaveProject = useCallback(() => {
     try {
       const json = saveProject();
@@ -265,10 +218,6 @@ export default function App() {
     }
   }, [saveProject]);
 
-  /**
-   * Handle loading a project from JSON data. The data is passed
-   * directly to the hook, which validates and normalises it.
-   */
   const handleLoadProject = useCallback((data: any) => {
     try {
       loadProject(data);
@@ -277,12 +226,6 @@ export default function App() {
       alert('Fichier JSON invalide ou incompatible.');
     }
   }, [loadProject]);
-
-  useEffect(() => {
-  console.log('Current time:', currentTime);
-  console.log('Is playing:', isPlaying);
-  console.log('Shader uniforms iTime:', shaderUniforms.iTime?.value);
-}, [currentTime, isPlaying, shaderUniforms]);
 
   return (
     <>
@@ -317,20 +260,25 @@ export default function App() {
           ),
         }}
       />
-      {/**
-       * The Plane component now handles its own time progression via useFrame,
-       * so we pass down the necessary state and callbacks.
-       */}
-      <Canvas style={{ background: 'black' }} orthographic camera={{ zoom: 1, position: [0, 0, 10] }}>
-        <Plane iTime={currentTime} isPlaying={isPlaying} totalDuration={totalDuration} setCurrentTime={setCurrentTime} uniforms={shaderUniforms} />
-      </Canvas>
+      
+      <ThreeScene
+        currentTime={currentTime}
+        isPlaying={isPlaying}
+        totalDuration={totalDuration}
+        setCurrentTime={setCurrentTime}
+        uniforms={shaderUniforms}
+      />
+      
       <PlaybackBar
         currentTime={currentTime}
         isPlaying={isPlaying}
         onPlayPause={handlePlayPause}
         onScrub={handleScrub}
         totalDuration={totalDuration}
-        segments={config.segments.map(({ startSec, durationSec }) => ({ start: startSec, duration: durationSec }))}
+        segments={config.segments.map(({ startSec, durationSec }) => ({ 
+          start: startSec, 
+          duration: durationSec 
+        }))}
       />
     </>
   );

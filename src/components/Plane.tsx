@@ -2,7 +2,7 @@ import { useRef, useEffect } from 'react';
 import * as THREE from 'three';
 import vertexShader from '../shaders/vertex.vert';
 import fragmentShader from '../shaders/fragment.frag';
-import { useFrame, useThree } from '@react-three/fiber';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
 
 interface PlaneProps {
   /** Current playback time in seconds. Propagated to the shader as
@@ -74,6 +74,12 @@ export default function Plane({
   });
 
   return (
+<Canvas style={{ background: 'black' }} orthographic camera={{ zoom: 1, position: [0, 0, 10] }}>
+  {/* Cube de test - il doit tourner */}
+  <mesh>
+    <boxGeometry args={[0.5, 0.5, 0.5]} />
+    <meshBasicMaterial color="red" />
+  </mesh>
     <mesh ref={plane} scale={[viewport.width, viewport.height, 1]}>
       <planeGeometry args={[1, 1, 64, 64]} />
       <shaderMaterial
@@ -83,5 +89,6 @@ export default function Plane({
         uniforms={uniforms}
       />
     </mesh>
+</Canvas>
   );
 }
