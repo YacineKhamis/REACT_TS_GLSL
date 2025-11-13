@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import { Canvas } from '@react-three/fiber';
 import * as THREE from 'three';
 import Plane from './components/Plane';
@@ -44,9 +44,7 @@ const BASE_COLOURS = {
 /**
  * Merge a base uniform set with an optional overrides object. Nested
  * objects (shapeCounts and tints) are shallowly merged. Returns a new
- * object without mutating the inputs. This function is defined here
- * rather than exported from the hook to avoid creating a new closure
- * during render.
+ * object without mutating the inputs.
  */
 function mergeUniformSets(base: UniformSet, override?: Partial<UniformSet>): UniformSet {
   if (!override) return base;
@@ -99,6 +97,24 @@ export default function App() {
   } = useProjectState();
 
   /**
+   * State controlling whether the sidebar (UI) is visible. Initially true.
+   * This drives the `isOpen` prop on the Sidebar component and is toggled
+   * by its button. Without this state, the Hide/Show UI button would
+   * never update because the prop was previously hard coded.
+   */
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+
+  /**
+   * Ref storing the current animation frame ID. Storing it in a ref
+   * ensures that the cleanup function cancels the correct frame even
+   * when React StrictMode invokes effects twice. If we stored the ID
+   * in a local variable, the second cleanup would cancel the frame
+   * scheduled by the second effect run, leaving the first frame
+   * dangling and freezing the animation.
+   */
+  const animationIdRef = useRef<number | null>(null);
+
+  /**
    * Advance the playback timer when the composition is playing. The
    * timer wraps around to zero when reaching the end of the total
    * duration. The increment per frame is fixed at 0.01 seconds, which
@@ -106,18 +122,22 @@ export default function App() {
    * change playback speed globally.
    */
   useEffect(() => {
-    let animationId: number;
     if (isPlaying) {
       const animate = () => {
         setCurrentTime(prev => {
           const next = prev + 0.01;
           return next >= totalDuration ? 0 : next;
         });
-        animationId = requestAnimationFrame(animate);
+        animationIdRef.current = requestAnimationFrame(animate);
       };
-      animationId = requestAnimationFrame(animate);
+      animationIdRef.current = requestAnimationFrame(animate);
     }
-    return () => cancelAnimationFrame(animationId);
+    return () => {
+      if (animationIdRef.current !== null) {
+        cancelAnimationFrame(animationIdRef.current);
+        animationIdRef.current = null;
+      }
+    };
   }, [isPlaying, totalDuration, setCurrentTime]);
 
   /**
@@ -179,7 +199,7 @@ export default function App() {
       segStart[i] = s.startSec;
       segDur[i] = s.durationSec;
     });
-    // Fill remaining slots with zeros
+    // Fill remaining slots with zeros or last valid values
     for (let i = numSegs; i < MAX_SEGMENTS; i++) {
       segStart[i] = segStart[Math.max(0, numSegs - 1)] ?? 0;
       segDur[i] = segDur[Math.max(0, numSegs - 1)] ?? 0;
@@ -291,23 +311,15 @@ export default function App() {
   return (
     <>
       <Sidebar
-        isOpen={true}
-        onToggle={() => {}}
+        isOpen={isSidebarOpen}
+        onToggle={() => setIsSidebarOpen(prev => !prev)}
         tabs={{
           Projet: (
             <ProjectControls
-              /*
-               * Pass the project's global uniforms and update handler directly. The
-               * ProjectControls component expects a `uniforms` prop containing
-               * the current UniformSet and an `onUniformsChange` callback for
-               * updates. We provide a confirmation dialog when creating a
-               * new project to avoid accidental state resets.
-               */
               uniforms={config.uniforms}
               onUniformsChange={updateProjectUniforms}
               onNew={() => {
                 if (window.confirm('Êtes-vous sûr de vouloir créer un nouveau projet ? Toutes les modifications non sauvegardées seront perdues.')) {
-                  // Simple approach: reload the page to reset the hook state.
                   window.location.reload();
                 }
               }}
@@ -329,7 +341,7 @@ export default function App() {
           ),
         }}
       />
-      {/*
+      {/**
        * Specify frameloop="always" so that the scene continues to render
        * even if no useFrame callbacks are registered. Without this, React
        * Three Fiber v8 defaults to a on-demand render loop, which stops
@@ -347,7 +359,6 @@ export default function App() {
         onPlayPause={handlePlayPause}
         onScrub={handleScrub}
         totalDuration={totalDuration}
-        // Provide segments with start times and durations for the scrubber
         segments={config.segments.map(({ startSec, durationSec }) => ({ start: startSec, duration: durationSec }))}
       />
     </>
