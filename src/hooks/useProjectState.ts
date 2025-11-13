@@ -25,6 +25,8 @@ const DEFAULT_UNIFORMS: UniformSet = {
   wavesIntensity: 0.5,
   epicycloidsIntensity: 0.5,
   expandingCirclesIntensity: 0.5,
+  shapeCounts: {},   // <= ajout
+  tints: {},         // <= ajout
 };
 
 /**
