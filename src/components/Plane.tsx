@@ -35,6 +35,9 @@ export default function Plane({
 }: PlaneProps) {
   const plane = useRef<THREE.Mesh>(null);
   const { viewport, size } = useThree();
+  
+  // NOUVEAU: Référence locale pour le temps accumulé
+  const localTimeRef = useRef(iTime);
 
   // Update resolution uniform when the canvas size changes
   useEffect(() => {
@@ -43,19 +46,29 @@ export default function Plane({
     }
   }, [size, uniforms]);
 
+  // NOUVEAU: Synchroniser le temps local avec iTime quand il change (scrubbing)
+  useEffect(() => {
+    localTimeRef.current = iTime;
+  }, [iTime]);
+
   // Main animation loop. Advances time and updates the iTime uniform.
   useFrame((_, delta) => {
     if (plane.current) {
       const mat = plane.current.material as THREE.ShaderMaterial;
-      let nextTime = iTime;
+      
       if (isPlaying) {
-        // Advance time, wrapping around if it exceeds total duration
-        nextTime = (iTime + delta) % totalDuration;
-        setCurrentTime(nextTime);
+        // CORRECTION: Incrémenter le temps local et wrapper
+        localTimeRef.current += delta;
+        if (localTimeRef.current >= totalDuration) {
+          localTimeRef.current = localTimeRef.current % totalDuration;
+        }
+        // Mettre à jour le state parent
+        setCurrentTime(localTimeRef.current);
       }
 
+      // CRITIQUE: Toujours mettre à jour l'uniform du shader
       if (mat.uniforms.iTime) {
-        mat.uniforms.iTime.value = nextTime;
+        mat.uniforms.iTime.value = localTimeRef.current;
       }
     }
   });
