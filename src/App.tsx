@@ -15,7 +15,7 @@ import type { UniformSet } from './types/config';
  * comments. Circles and waves both start with 3 instances, epicycloids
  * with 3, and expanding circles with 2.
  */
-const DEFAULT_SHAPE_COUNTS = { circles: 3, waves: 3, epicycloids: 3, expandingCircles: 2 };
+const DEFAULT_SHAPE_COUNTS = { circles: 3, waves: 3, epicycloids: 2, expandingCircles: 2 };
 
 /**
  * Default tint used when none is specified. White means no tint and
@@ -186,12 +186,13 @@ export default function App() {
           resolved.epicycloidsIntensity,
           resolved.expandingCirclesIntensity,
         );
+        // FIX: Utiliser les valeurs par défaut si shapeCounts n'est pas défini
         const sc = { ...DEFAULT_SHAPE_COUNTS, ...(resolved.shapeCounts ?? {}) };
         counts[i] = new THREE.Vector4(
-          sc.circles,
-          sc.expandingCircles,
-          sc.waves,
-          sc.epicycloids,
+          sc.circles ?? DEFAULT_SHAPE_COUNTS.circles,
+          sc.expandingCircles ?? DEFAULT_SHAPE_COUNTS.expandingCircles,
+          sc.waves ?? DEFAULT_SHAPE_COUNTS.waves,
+          sc.epicycloids ?? DEFAULT_SHAPE_COUNTS.epicycloids,
         );
         const t = resolved.tints ?? {};
         const circ = t.circles ?? DEFAULT_TINT;
@@ -211,7 +212,12 @@ export default function App() {
         } else {
           // If no segments are defined (should not happen), use zeros and white tints
           intensities[i] = new THREE.Vector4(0, 0, 0, 0);
-          counts[i] = new THREE.Vector4(0, 0, 0, 0);
+          counts[i] = new THREE.Vector4(
+            DEFAULT_SHAPE_COUNTS.circles,
+            DEFAULT_SHAPE_COUNTS.expandingCircles,
+            DEFAULT_SHAPE_COUNTS.waves,
+            DEFAULT_SHAPE_COUNTS.epicycloids
+          );
           tintCirc[i] = new THREE.Color(1, 1, 1);
           tintWave[i] = new THREE.Color(1, 1, 1);
           tintEpi[i] = new THREE.Color(1, 1, 1);
@@ -236,7 +242,7 @@ export default function App() {
     uniforms.uEpiColor1 = { value: BASE_COLOURS.epi1 };
     uniforms.uExpandColor = { value: BASE_COLOURS.expand };
     return uniforms;
-  }, [config.segments, config.uniforms, effectiveUniforms]);
+  }, [config.segments, config.uniforms, effectiveUniforms, currentTime]);
 
   /**
    * Handle saving the project. Serialises the current configuration
