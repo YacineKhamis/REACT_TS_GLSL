@@ -105,42 +105,6 @@ export default function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
   /**
-   * Ref storing the current animation frame ID. Storing it in a ref
-   * ensures that the cleanup function cancels the correct frame even
-   * when React StrictMode invokes effects twice. If we stored the ID
-   * in a local variable, the second cleanup would cancel the frame
-   * scheduled by the second effect run, leaving the first frame
-   * dangling and freezing the animation.
-   */
-  const animationIdRef = useRef<number | null>(null);
-
-  /**
-   * Advance the playback timer when the composition is playing. The
-   * timer wraps around to zero when reaching the end of the total
-   * duration. The increment per frame is fixed at 0.01 seconds, which
-   * produces a reasonably smooth animation; adjust this constant to
-   * change playback speed globally.
-   */
-  useEffect(() => {
-    if (isPlaying) {
-      const animate = () => {
-        setCurrentTime(prev => {
-          const next = prev + 0.01;
-          return next >= totalDuration ? 0 : next;
-        });
-        animationIdRef.current = requestAnimationFrame(animate);
-      };
-      animationIdRef.current = requestAnimationFrame(animate);
-    }
-    return () => {
-      if (animationIdRef.current !== null) {
-        cancelAnimationFrame(animationIdRef.current);
-        animationIdRef.current = null;
-      }
-    };
-  }, [isPlaying, totalDuration, setCurrentTime]);
-
-  /**
    * Toggle play/pause state. Bound to the playback bar's play/pause
    * button.
    */
@@ -342,16 +306,11 @@ export default function App() {
         }}
       />
       {/**
-       * Specify frameloop="always" so that the scene continues to render
-       * even if no useFrame callbacks are registered. Without this, React
-       * Three Fiber v8 defaults to a on-demand render loop, which stops
-       * updating the canvas when there are no subscribers. Because the
-       * Plane component no longer uses a useFrame callback to update the
-       * iTime uniform, we must keep the render loop running to animate
-       * continuously.
+       * The Plane component now handles its own time progression via useFrame,
+       * so we pass down the necessary state and callbacks.
        */}
-      <Canvas frameloop="always" style={{ background: 'black' }} orthographic camera={{ zoom: 1, position: [0, 0, 10] }}>
-        <Plane iTime={currentTime} uniforms={shaderUniforms} />
+      <Canvas style={{ background: 'black' }} orthographic camera={{ zoom: 1, position: [0, 0, 10] }}>
+        <Plane iTime={currentTime} isPlaying={isPlaying} totalDuration={totalDuration} setCurrentTime={setCurrentTime} uniforms={shaderUniforms} />
       </Canvas>
       <PlaybackBar
         currentTime={currentTime}
