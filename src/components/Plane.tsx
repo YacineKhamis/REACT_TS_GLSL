@@ -47,13 +47,15 @@ export default function Plane({
   useFrame((_, delta) => {
     if (plane.current) {
       const mat = plane.current.material as THREE.ShaderMaterial;
+      let nextTime = iTime;
       if (isPlaying) {
         // Advance time, wrapping around if it exceeds total duration
-        const nextTime = (iTime + delta) % totalDuration;
+        nextTime = (iTime + delta) % totalDuration;
         setCurrentTime(nextTime);
-        if (mat.uniforms.iTime) {
-          mat.uniforms.iTime.value = nextTime;
-        }
+      }
+
+      if (mat.uniforms.iTime) {
+        mat.uniforms.iTime.value = nextTime;
       }
     }
   });

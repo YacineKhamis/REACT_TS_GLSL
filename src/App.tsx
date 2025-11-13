@@ -236,7 +236,7 @@ export default function App() {
     uniforms.uEpiColor1 = { value: BASE_COLOURS.epi1 };
     uniforms.uExpandColor = { value: BASE_COLOURS.expand };
     return uniforms;
-  }, [config.segments, config.uniforms, currentTime, effectiveUniforms]);
+  }, [config.segments, config.uniforms, effectiveUniforms]);
 
   /**
    * Handle saving the project. Serialises the current configuration
