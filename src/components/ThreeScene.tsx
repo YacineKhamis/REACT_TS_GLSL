@@ -28,8 +28,7 @@ export default function ThreeScene({
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const meshRef = useRef<THREE.Mesh | null>(null);
   const animationIdRef = useRef<number | null>(null);
-  const localTimeRef = useRef(currentTime);
-  const lastFrameTimeRef = useRef(performance.now());
+  const lastFrameTimeRef = useRef<number>(0);
 
   // Initialisation de la scène THREE.js
   useEffect(() => {
@@ -85,38 +84,8 @@ export default function ThreeScene({
       uniforms.uResolution.value.set(window.innerWidth, window.innerHeight);
     }
 
-    // Boucle d'animation
-    const animate = () => {
-      animationIdRef.current = requestAnimationFrame(animate);
-
-      if (!meshRef.current || !sceneRef.current || !cameraRef.current || !rendererRef.current) {
-        return;
-      }
-
-      const now = performance.now();
-      const delta = (now - lastFrameTimeRef.current) / 1000; // Convertir en secondes
-      lastFrameTimeRef.current = now;
-
-      // Mettre à jour le temps
-      if (isPlaying) {
-        localTimeRef.current += delta;
-        if (localTimeRef.current >= totalDuration) {
-          localTimeRef.current = localTimeRef.current % totalDuration;
-        }
-        setCurrentTime(localTimeRef.current);
-      }
-
-      // Mettre à jour l'uniform iTime
-      const material = meshRef.current.material as THREE.ShaderMaterial;
-      if (material.uniforms.iTime) {
-        material.uniforms.iTime.value = localTimeRef.current;
-      }
-
-      // Rendre la scène
-      rendererRef.current.render(sceneRef.current, cameraRef.current);
-    };
-
-    animate();
+    // Initialiser le temps de la dernière frame
+    lastFrameTimeRef.current = performance.now();
 
     // Nettoyage
     return () => {
@@ -141,10 +110,49 @@ export default function ThreeScene({
     };
   }, []); // On n'initialise qu'une fois
 
-  // Synchroniser le temps local avec currentTime (pour le scrubbing)
+  // Boucle d'animation séparée - s'exécute en continu
   useEffect(() => {
-    localTimeRef.current = currentTime;
-  }, [currentTime]);
+    let animationId: number;
+
+    const animate = () => {
+      animationId = requestAnimationFrame(animate);
+
+      if (!meshRef.current || !sceneRef.current || !cameraRef.current || !rendererRef.current) {
+        return;
+      }
+
+      const now = performance.now();
+      const delta = (now - lastFrameTimeRef.current) / 1000; // Convertir en secondes
+      lastFrameTimeRef.current = now;
+
+      // CRITIQUE: Mettre à jour le temps seulement si on est en lecture
+      if (isPlaying && totalDuration > 0) {
+        let newTime = currentTime + delta;
+        // Wrapper le temps si on dépasse la durée totale
+        if (newTime >= totalDuration) {
+          newTime = newTime % totalDuration;
+        }
+        setCurrentTime(newTime);
+      }
+
+      // Mettre à jour l'uniform iTime avec le currentTime
+      const material = meshRef.current.material as THREE.ShaderMaterial;
+      if (material.uniforms.iTime) {
+        material.uniforms.iTime.value = currentTime;
+      }
+
+      // Rendre la scène
+      rendererRef.current.render(sceneRef.current, cameraRef.current);
+    };
+
+    animate();
+
+    return () => {
+      if (animationId) {
+        cancelAnimationFrame(animationId);
+      }
+    };
+  }, [isPlaying, currentTime, totalDuration, setCurrentTime]);
 
   // Mettre à jour les uniforms quand ils changent
   useEffect(() => {
@@ -161,6 +169,21 @@ export default function ThreeScene({
     
     material.uniformsNeedUpdate = true;
   }, [uniforms]);
+
+  // Forcer un rendu quand currentTime change (pour le scrubbing)
+  useEffect(() => {
+    if (!meshRef.current || !sceneRef.current || !cameraRef.current || !rendererRef.current) {
+      return;
+    }
+
+    const material = meshRef.current.material as THREE.ShaderMaterial;
+    if (material.uniforms.iTime) {
+      material.uniforms.iTime.value = currentTime;
+    }
+
+    // Forcer un rendu immédiat pour le scrubbing
+    rendererRef.current.render(sceneRef.current, cameraRef.current);
+  }, [currentTime]);
 
   return (
     <div

@@ -12,8 +12,7 @@ interface PlaybackBarProps {
 /**
  * Playback bar component. Displays the current time, allows scrubbing
  * through the timeline and toggling play/pause. It also labels the
- * current segment for clarity. For now this implementation mirrors
- * the original behaviour closely.
+ * current segment for clarity.
  */
 const PlaybackBar: React.FC<PlaybackBarProps> = ({
   currentTime,
@@ -58,6 +57,16 @@ const PlaybackBar: React.FC<PlaybackBarProps> = ({
     onScrub(newTime);
   };
 
+  const handleMouseDown = () => {
+    isScrubbing.current = true;
+  };
+
+  const handleMouseUp = () => {
+    isScrubbing.current = false;
+    // S'assurer que le temps affiché correspond au temps scrubé
+    onScrub(displayTime);
+  };
+
   return (
     <div
       style={{
@@ -100,8 +109,10 @@ const PlaybackBar: React.FC<PlaybackBarProps> = ({
           step="0.01"
           value={displayTime}
           onChange={handleSliderChange}
-          onMouseDown={() => (isScrubbing.current = true)}
-          onMouseUp={() => (isScrubbing.current = false)}
+          onMouseDown={handleMouseDown}
+          onMouseUp={handleMouseUp}
+          onTouchStart={handleMouseDown}
+          onTouchEnd={handleMouseUp}
           style={{ flexGrow: 1, height: '5px', cursor: 'pointer' }}
         />
         <span
