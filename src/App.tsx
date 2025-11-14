@@ -8,19 +8,9 @@ import SegmentControls from './components/SegmentControls';
 import { useProjectState } from './hooks/useProjectState';
 import type { UniformSet } from './types/config';
 
-/**
- * Default counts used when no overrides are defined.
- */
 const DEFAULT_SHAPE_COUNTS = { circles: 3, waves: 3, epicycloids: 2, expandingCircles: 2 };
-
-/**
- * Default tint used when none is specified. White means no tint.
- */
 const DEFAULT_TINT: [number, number, number] = [1, 1, 1];
 
-/**
- * Base colours for the primitive shapes used in the shader.
- */
 const BASE_COLOURS = {
   circle0: new THREE.Color(0xff0000),
   circle1: new THREE.Color(0x00ff00),
@@ -33,9 +23,6 @@ const BASE_COLOURS = {
   expand: new THREE.Color(0xffa500),
 };
 
-/**
- * Merge a base uniform set with an optional overrides object.
- */
 function mergeUniformSets(base: UniformSet, override?: Partial<UniformSet>): UniformSet {
   if (!override) return base;
   const cleaned: any = {};
@@ -93,12 +80,13 @@ export default function App() {
     return resolveUniformsForTime(currentTime);
   }, [resolveUniformsForTime, currentTime]);
 
+  // OPTIMISATION: Ne recalculer les uniforms que quand config change, pas à chaque frame
   const shaderUniforms = useMemo(() => {
     const MAX_SEGMENTS = 20;
     const uniforms: any = {};
     
-    // Time and resolution
-    uniforms.iTime = { value: currentTime };
+    // Time et resolution - on les initialise mais on ne les met pas à jour ici
+    uniforms.iTime = { value: 0 }; // Sera mis à jour par ThreeScene
     uniforms.uResolution = { value: new THREE.Vector2(window.innerWidth, window.innerHeight) };
     
     const numSegs = config.segments.length;
@@ -200,7 +188,7 @@ export default function App() {
     uniforms.uExpandColor = { value: BASE_COLOURS.expand };
     
     return uniforms;
-  }, [config.segments, config.uniforms, effectiveUniforms, currentTime]);
+  }, [config.segments, config.uniforms, effectiveUniforms]); // Pas currentTime ici!
 
   const handleSaveProject = useCallback(() => {
     try {

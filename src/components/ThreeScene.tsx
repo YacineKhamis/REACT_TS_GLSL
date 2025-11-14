@@ -14,6 +14,7 @@ interface ThreeSceneProps {
 /**
  * Composant qui gère le rendu THREE.js pur (sans React Three Fiber).
  * Crée une scène, une caméra et un renderer, puis anime le shader.
+ * OPTIMISÉ pour éviter les boucles de re-render.
  */
 export default function ThreeScene({
   currentTime,
@@ -29,8 +30,31 @@ export default function ThreeScene({
   const meshRef = useRef<THREE.Mesh | null>(null);
   const animationIdRef = useRef<number | null>(null);
   const lastFrameTimeRef = useRef<number>(0);
+  
+  // Refs pour éviter les re-renders
+  const currentTimeRef = useRef(currentTime);
+  const isPlayingRef = useRef(isPlaying);
+  const totalDurationRef = useRef(totalDuration);
+  const setCurrentTimeRef = useRef(setCurrentTime);
 
-  // Initialisation de la scène THREE.js
+  // Synchroniser les refs avec les props
+  useEffect(() => {
+    currentTimeRef.current = currentTime;
+  }, [currentTime]);
+
+  useEffect(() => {
+    isPlayingRef.current = isPlaying;
+  }, [isPlaying]);
+
+  useEffect(() => {
+    totalDurationRef.current = totalDuration;
+  }, [totalDuration]);
+
+  useEffect(() => {
+    setCurrentTimeRef.current = setCurrentTime;
+  }, [setCurrentTime]);
+
+  // Initialisation de la scène THREE.js (une seule fois)
   useEffect(() => {
     if (!containerRef.current) return;
 
@@ -64,28 +88,64 @@ export default function ThreeScene({
 
     // Gérer le redimensionnement
     const handleResize = () => {
-      if (!cameraRef.current || !rendererRef.current) return;
+      if (!camera || !renderer) return;
       
       const width = window.innerWidth;
       const height = window.innerHeight;
       
-      rendererRef.current.setSize(width, height);
+      renderer.setSize(width, height);
       
       // Mettre à jour l'uniform de résolution
-      if (uniforms.uResolution) {
-        uniforms.uResolution.value.set(width, height);
+      const mat = mesh.material as THREE.ShaderMaterial;
+      if (mat.uniforms.uResolution) {
+        mat.uniforms.uResolution.value.set(width, height);
       }
     };
 
     window.addEventListener('resize', handleResize);
 
     // Initialiser la résolution
-    if (uniforms.uResolution) {
-      uniforms.uResolution.value.set(window.innerWidth, window.innerHeight);
+    if (material.uniforms.uResolution) {
+      material.uniforms.uResolution.value.set(window.innerWidth, window.innerHeight);
     }
 
     // Initialiser le temps de la dernière frame
     lastFrameTimeRef.current = performance.now();
+
+    // Boucle d'animation (définie une seule fois)
+    const animate = () => {
+      animationIdRef.current = requestAnimationFrame(animate);
+
+      if (!mesh || !scene || !camera || !renderer) return;
+
+      const now = performance.now();
+      const delta = (now - lastFrameTimeRef.current) / 1000;
+      lastFrameTimeRef.current = now;
+
+      const material = mesh.material as THREE.ShaderMaterial;
+
+      // Mettre à jour le temps si en lecture
+      if (isPlayingRef.current && totalDurationRef.current > 0) {
+        let newTime = currentTimeRef.current + delta;
+        if (newTime >= totalDurationRef.current) {
+          newTime = newTime % totalDurationRef.current;
+        }
+        currentTimeRef.current = newTime;
+        
+        // Mettre à jour le state React (throttled naturellement par RAF)
+        setCurrentTimeRef.current(newTime);
+      }
+
+      // Toujours mettre à jour l'uniform iTime
+      if (material.uniforms.iTime) {
+        material.uniforms.iTime.value = currentTimeRef.current;
+      }
+
+      // Rendre la scène
+      renderer.render(scene, camera);
+    };
+
+    animate();
 
     // Nettoyage
     return () => {
@@ -95,95 +155,31 @@ export default function ThreeScene({
         cancelAnimationFrame(animationIdRef.current);
       }
       
-      if (containerRef.current && rendererRef.current) {
-        containerRef.current.removeChild(rendererRef.current.domElement);
+      if (containerRef.current && renderer) {
+        containerRef.current.removeChild(renderer.domElement);
       }
       
-      if (rendererRef.current) {
-        rendererRef.current.dispose();
-      }
-      
-      if (meshRef.current) {
-        meshRef.current.geometry.dispose();
-        (meshRef.current.material as THREE.Material).dispose();
-      }
+      renderer.dispose();
+      geometry.dispose();
+      material.dispose();
     };
-  }, []); // On n'initialise qu'une fois
+  }, []); // Vraiment une seule fois
 
-  // Boucle d'animation séparée - s'exécute en continu
-  useEffect(() => {
-    let animationId: number;
-
-    const animate = () => {
-      animationId = requestAnimationFrame(animate);
-
-      if (!meshRef.current || !sceneRef.current || !cameraRef.current || !rendererRef.current) {
-        return;
-      }
-
-      const now = performance.now();
-      const delta = (now - lastFrameTimeRef.current) / 1000; // Convertir en secondes
-      lastFrameTimeRef.current = now;
-
-      // CRITIQUE: Mettre à jour le temps seulement si on est en lecture
-      if (isPlaying && totalDuration > 0) {
-        let newTime = currentTime + delta;
-        // Wrapper le temps si on dépasse la durée totale
-        if (newTime >= totalDuration) {
-          newTime = newTime % totalDuration;
-        }
-        setCurrentTime(newTime);
-      }
-
-      // Mettre à jour l'uniform iTime avec le currentTime
-      const material = meshRef.current.material as THREE.ShaderMaterial;
-      if (material.uniforms.iTime) {
-        material.uniforms.iTime.value = currentTime;
-      }
-
-      // Rendre la scène
-      rendererRef.current.render(sceneRef.current, cameraRef.current);
-    };
-
-    animate();
-
-    return () => {
-      if (animationId) {
-        cancelAnimationFrame(animationId);
-      }
-    };
-  }, [isPlaying, currentTime, totalDuration, setCurrentTime]);
-
-  // Mettre à jour les uniforms quand ils changent
+  // Mettre à jour les uniforms quand ils changent (sans toucher à iTime)
   useEffect(() => {
     if (!meshRef.current) return;
     
     const material = meshRef.current.material as THREE.ShaderMaterial;
     
-    // Remplacer tous les uniforms
+    // Mettre à jour tous les uniforms SAUF iTime
     Object.keys(uniforms).forEach(key => {
-      if (material.uniforms[key]) {
+      if (key !== 'iTime' && material.uniforms[key]) {
         material.uniforms[key].value = uniforms[key].value;
       }
     });
     
     material.uniformsNeedUpdate = true;
   }, [uniforms]);
-
-  // Forcer un rendu quand currentTime change (pour le scrubbing)
-  useEffect(() => {
-    if (!meshRef.current || !sceneRef.current || !cameraRef.current || !rendererRef.current) {
-      return;
-    }
-
-    const material = meshRef.current.material as THREE.ShaderMaterial;
-    if (material.uniforms.iTime) {
-      material.uniforms.iTime.value = currentTime;
-    }
-
-    // Forcer un rendu immédiat pour le scrubbing
-    rendererRef.current.render(sceneRef.current, cameraRef.current);
-  }, [currentTime]);
 
   return (
     <div
