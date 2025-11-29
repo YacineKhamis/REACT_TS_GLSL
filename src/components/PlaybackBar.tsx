@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 
+export const PLAYBACK_BAR_HEIGHT = 76;
+
 interface PlaybackBarProps {
   currentTime: number;
   isPlaying: boolean;
@@ -74,6 +76,7 @@ const PlaybackBar: React.FC<PlaybackBarProps> = ({
         bottom: 0,
         left: 0,
         width: '100%',
+        minHeight: PLAYBACK_BAR_HEIGHT,
         backgroundColor: 'rgba(0, 0, 0, 0.7)',
         color: 'white',
         padding: '10px 20px',

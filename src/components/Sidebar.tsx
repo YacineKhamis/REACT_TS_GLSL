@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { PLAYBACK_BAR_HEIGHT } from './PlaybackBar';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -43,7 +44,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle, tabs }) => {
           top: 0,
           left: isOpen ? 0 : '-250px',
           width: '250px',
-          height: '100%',
+          height: `calc(100% - ${PLAYBACK_BAR_HEIGHT}px)`,
           backgroundColor: 'rgba(0, 0, 0, 0.8)',
           color: 'white',
           padding: '20px',
@@ -51,6 +52,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle, tabs }) => {
           transition: 'left 0.3s ease-in-out',
           zIndex: 1000,
           overflowY: 'auto',
+          paddingBottom: '20px',
         }}
       >
         <div style={{ display: 'flex', borderBottom: '1px solid #444', marginBottom: '20px' }}>
