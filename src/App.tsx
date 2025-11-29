@@ -7,6 +7,7 @@ import ProjectControls from './components/ProjectControls';
 import SegmentControls from './components/SegmentControls';
 import { useProjectState } from './hooks/useProjectState';
 import type { UniformSet } from './types/config';
+import { DEFAULT_EPI_SAMPLES, MAX_EPI } from './constants/epicycloids';
 
 const DEFAULT_SHAPE_COUNTS = { circles: 3, waves: 3, epicycloids: 2, expandingCircles: 2 };
 const DEFAULT_TINT: [number, number, number] = [1, 1, 1];
@@ -84,6 +85,7 @@ export default function App() {
   const shaderUniforms = useMemo(() => {
     const MAX_SEGMENTS = 20;
     const uniforms: any = {};
+    const fallbackBg = config.uniforms.backgroundColor;
     
     // Time et resolution - on les initialise mais on ne les met pas à jour ici
     uniforms.iTime = { value: 0 }; // Sera mis à jour par ThreeScene
@@ -112,6 +114,8 @@ export default function App() {
     const tintCirc: THREE.Color[] = new Array(MAX_SEGMENTS);
     const tintWave: THREE.Color[] = new Array(MAX_SEGMENTS);
     const tintEpi: THREE.Color[] = new Array(MAX_SEGMENTS);
+    const bgColors: THREE.Color[] = new Array(MAX_SEGMENTS);
+    const epiSamples = new Float32Array(MAX_SEGMENTS * MAX_EPI);
     
     for (let i = 0; i < MAX_SEGMENTS; i++) {
       if (i < numSegs) {
@@ -141,6 +145,13 @@ export default function App() {
         tintCirc[i] = new THREE.Color(circ[0], circ[1], circ[2]);
         tintWave[i] = new THREE.Color(wave[0], wave[1], wave[2]);
         tintEpi[i] = new THREE.Color(epi[0], epi[1], epi[2]);
+        const bg = resolved.backgroundColor ?? fallbackBg;
+        bgColors[i] = new THREE.Color(bg[0], bg[1], bg[2]);
+        const sampleSource = resolved.epicycloidsSamples ?? DEFAULT_EPI_SAMPLES;
+        for (let epiIdx = 0; epiIdx < MAX_EPI; epiIdx++) {
+          const fallback = DEFAULT_EPI_SAMPLES[epiIdx] ?? DEFAULT_EPI_SAMPLES[DEFAULT_EPI_SAMPLES.length - 1] ?? 512;
+          epiSamples[i * MAX_EPI + epiIdx] = sampleSource[epiIdx] ?? fallback;
+        }
       } else {
         if (numSegs > 0) {
           intensities[i] = intensities[numSegs - 1].clone();
@@ -148,6 +159,10 @@ export default function App() {
           tintCirc[i] = tintCirc[numSegs - 1].clone();
           tintWave[i] = tintWave[numSegs - 1].clone();
           tintEpi[i] = tintEpi[numSegs - 1].clone();
+          bgColors[i] = bgColors[numSegs - 1].clone();
+          for (let epiIdx = 0; epiIdx < MAX_EPI; epiIdx++) {
+            epiSamples[i * MAX_EPI + epiIdx] = epiSamples[(numSegs - 1) * MAX_EPI + epiIdx];
+          }
         } else {
           intensities[i] = new THREE.Vector4(0, 0, 0, 0);
           counts[i] = new THREE.Vector4(
@@ -159,6 +174,10 @@ export default function App() {
           tintCirc[i] = new THREE.Color(1, 1, 1);
           tintWave[i] = new THREE.Color(1, 1, 1);
           tintEpi[i] = new THREE.Color(1, 1, 1);
+          bgColors[i] = new THREE.Color(fallbackBg[0], fallbackBg[1], fallbackBg[2]);
+          for (let epiIdx = 0; epiIdx < MAX_EPI; epiIdx++) {
+            epiSamples[i * MAX_EPI + epiIdx] = DEFAULT_EPI_SAMPLES[epiIdx];
+          }
         }
       }
     }
@@ -168,6 +187,8 @@ export default function App() {
     uniforms.uTintCircSeg = { value: tintCirc };
     uniforms.uTintWaveSeg = { value: tintWave };
     uniforms.uTintEpiSeg = { value: tintEpi };
+    uniforms.uBgColorSeg = { value: bgColors };
+    uniforms.uEpiSamples = { value: epiSamples };
     
     uniforms.uBackgroundColor = { 
       value: new THREE.Color(
@@ -176,6 +197,7 @@ export default function App() {
         effectiveUniforms.backgroundColor[2]
       ) 
     };
+    uniforms.uEpiSampleFactor = { value: effectiveUniforms.epicycloidsSampleFactor ?? 1 };
     
     uniforms.uCircleColor0 = { value: BASE_COLOURS.circle0 };
     uniforms.uCircleColor1 = { value: BASE_COLOURS.circle1 };

@@ -1,5 +1,6 @@
 import React, { useCallback } from 'react';
 import type { UniformSet, UniformVec3 } from '../types/config';
+import { DEFAULT_EPI_SAMPLES, MAX_EPI } from '../constants/epicycloids';
 
 interface UniformControlsProps {
   /**
@@ -94,6 +95,18 @@ export const UniformControls: React.FC<UniformControlsProps> = ({ uniforms, onCh
     } as UniformSet);
   }, [uniforms, onChange]);
 
+  const handleEpiSample = useCallback((index: number) => (e: React.ChangeEvent<HTMLInputElement>) => {
+    const parsed = parseInt(e.target.value, 10);
+    const nextValue = Number.isFinite(parsed) ? Math.max(1, parsed) : 1;
+    const current = uniforms.epicycloidsSamples ?? DEFAULT_EPI_SAMPLES;
+    const nextSamples = Array.from({ length: MAX_EPI }, (_, i) => current[i] ?? DEFAULT_EPI_SAMPLES[i]);
+    nextSamples[index] = nextValue;
+    onChange({
+      ...uniforms,
+      epicycloidsSamples: nextSamples,
+    } as UniformSet);
+  }, [uniforms, onChange]);
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
       {/* Background colour */}
@@ -148,6 +161,17 @@ export const UniformControls: React.FC<UniformControlsProps> = ({ uniforms, onCh
           step={0.01}
           value={uniforms.expandingCirclesIntensity}
           onChange={handleScalar('expandingCirclesIntensity')}
+        />
+      </label>
+      <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <span style={{ width: '120px' }}>Epi Sample Factor</span>
+        <input
+          type="number"
+          min={0.1}
+          max={1}
+          step={0.05}
+          value={uniforms.epicycloidsSampleFactor ?? 1}
+          onChange={handleScalar('epicycloidsSampleFactor')}
         />
       </label>
 
@@ -235,6 +259,22 @@ export const UniformControls: React.FC<UniformControlsProps> = ({ uniforms, onCh
             onChange={handleTint('expandingCircles')}
           />
         </label>
+      </fieldset>
+      <fieldset style={{ border: '1px solid #444', padding: '8px', marginTop: '8px' }}>
+        <legend style={{ padding: '0 4px' }}>Epicycloid Samples</legend>
+        {Array.from({ length: MAX_EPI }).map((_, idx) => (
+          <label key={idx} style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+            <span style={{ width: '120px' }}>Epi {idx}</span>
+            <input
+              type="number"
+              min={1}
+              max={2000}
+              step={1}
+              value={(uniforms.epicycloidsSamples ?? DEFAULT_EPI_SAMPLES)[idx] ?? DEFAULT_EPI_SAMPLES[idx]}
+              onChange={handleEpiSample(idx)}
+            />
+          </label>
+        ))}
       </fieldset>
     </div>
   );

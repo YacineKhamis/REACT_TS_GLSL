@@ -3,6 +3,8 @@
 // ========================================
 
 // ------------ UNIFORMS MINIMALES ------------
+#define MAX_SEGMENTS 20
+#define MAX_EPI_PER_SEGMENT 8
 uniform vec2 uResolution;
 uniform float iTime;
 
@@ -12,13 +14,15 @@ uniform vec3 uCircleColor0, uCircleColor1, uCircleColor2;
 uniform vec3 uWaveColor0, uWaveColor1, uWaveColor2;
 uniform vec3 uEpiColor0, uEpiColor1;
 uniform vec3 uExpandColor;
+uniform float uEpiSampleFactor;
+uniform float uEpiSamples[MAX_SEGMENTS * MAX_EPI_PER_SEGMENT];
+uniform vec3 uBgColorSeg[MAX_SEGMENTS];
 
 // ---------- TIMELINE UNIFORMS ----------
 // In order to support a variable number of segments, the timing and
 // per‑segment parameters are provided as uniform arrays. uNumSegments
 // defines how many entries in these arrays are considered valid.
 // MAX_SEGMENTS defines the maximum number supported by the shader.
-#define MAX_SEGMENTS 20
 
 uniform int uNumSegments;
 uniform float uSegStart[MAX_SEGMENTS];
@@ -37,6 +41,8 @@ uniform vec3 uTintEpiSeg[MAX_SEGMENTS];
 // the uniform arrays uSegStart, uSegDur and associated per‑segment
 // arrays. The maximum number of supported segments is defined by
 // MAX_SEGMENTS at the top of this file.
+// TRANSITION controls how long the blend from the previous segment
+// into the new one lasts, starting exactly at the new segment's start.
 const float TRANSITION = 10.0;
 
 // Segment start and duration are now provided via uniform arrays uSegStart and uSegDur. See above.
@@ -69,7 +75,7 @@ const float W_SPEED[MAX_WAVE_LAYERS] = float[](0.20, 0.15, 0.10, 0.18, 0.12, 0.1
 const float W_THICK[MAX_WAVE_LAYERS] = float[](0.0010, 0.004, 0.006, 0.003, 0.005, 0.05, 0.0035, 0.0045);
 
 // Epicycloïdes
-const int MAX_EPI = 8;
+const int MAX_EPI = MAX_EPI_PER_SEGMENT;
 const float E_R[MAX_EPI] = float[](7.190, 1.85, 13.5, 20., 14.3, 9.1, 5.8, 7.5);
 const float E_r[MAX_EPI] = float[](-3.03, 0.506, -3.94, 7., -3.5, 5.5, -4.0, 6.5);
 const float E_SCALE[MAX_EPI] = float[](0.0075, 0.045, 0.031, 0.025, 0.040, 0.030, 0.038, 0.028);
@@ -103,6 +109,7 @@ struct SegData {
     vec3 tintCirc;    // Teinte interpolée pour cercles
     vec3 tintWave;    // Teinte interpolée pour vagues
     vec3 tintEpi;     // Teinte interpolée pour epicycloïdes
+    vec3 bgColor;     // Couleur de fond interpolée
     float progress;
     int idx;
 };
@@ -131,6 +138,16 @@ vec3 getTintEpi(int i) {
     return uTintEpiSeg[i];
 }
 
+int getEpiSampleIndex(int segIndex, int epiIndex) {
+    int clampedSeg = clamp(segIndex, 0, MAX_SEGMENTS - 1);
+    int clampedEpi = clamp(epiIndex, 0, MAX_EPI_PER_SEGMENT - 1);
+    return clampedSeg * MAX_EPI_PER_SEGMENT + clampedEpi;
+}
+
+vec3 getBgColor(int i) {
+    return uBgColorSeg[i];
+}
+
 SegData getSegment(float t) {
     SegData s;
     s.intensities = vec4(0.0);
@@ -138,6 +155,7 @@ SegData getSegment(float t) {
     s.tintCirc = vec3(1.0);
     s.tintWave = vec3(1.0);
     s.tintEpi = vec3(1.0);
+    s.bgColor = uBackgroundColor;
     // Default to the last segment
     s.idx = uNumSegments - 1;
 
@@ -168,38 +186,47 @@ SegData getSegment(float t) {
 
     s.idx = cur;
     float tIn = t - start;
-    float prog = clamp(tIn / dur, 0.0, 1.0);
+    float prog = (dur > 0.0) ? clamp(tIn / max(dur, 0.0001), 0.0, 1.0) : 0.0;
 
-    // Retrieve current and next segment data
-    vec4 intensityA = getIntensityForSeg(cur);
-    vec4 intensityB = (cur < uNumSegments - 1) ? getIntensityForSeg(cur + 1) : intensityA;
+    vec4 intensityCurr = getIntensityForSeg(cur);
+    vec4 shapeCountsCurr = getShapeCountsForSeg(cur);
+    vec3 tintCircCurr = getTintCirc(cur);
+    vec3 tintWaveCurr = getTintWave(cur);
+    vec3 tintEpiCurr = getTintEpi(cur);
+    vec3 bgColorCurr = getBgColor(cur);
 
-    vec4 shapeCountsA = getShapeCountsForSeg(cur);
-    vec4 shapeCountsB = (cur < uNumSegments - 1) ? getShapeCountsForSeg(cur + 1) : shapeCountsA;
+    vec4 intensityPrev = intensityCurr;
+    vec4 shapeCountsPrev = shapeCountsCurr;
+    vec3 tintCircPrev = tintCircCurr;
+    vec3 tintWavePrev = tintWaveCurr;
+    vec3 tintEpiPrev = tintEpiCurr;
+    vec3 bgColorPrev = bgColorCurr;
 
-    vec3 tintCircA = getTintCirc(cur);
-    vec3 tintCircB = (cur < uNumSegments - 1) ? getTintCirc(cur + 1) : tintCircA;
+    if (cur > 0) {
+        int prevIndex = cur - 1;
+        intensityPrev = getIntensityForSeg(prevIndex);
+        shapeCountsPrev = getShapeCountsForSeg(prevIndex);
+        tintCircPrev = getTintCirc(prevIndex);
+        tintWavePrev = getTintWave(prevIndex);
+        tintEpiPrev = getTintEpi(prevIndex);
+        bgColorPrev = getBgColor(prevIndex);
+    }
 
-    vec3 tintWaveA = getTintWave(cur);
-    vec3 tintWaveB = (cur < uNumSegments - 1) ? getTintWave(cur + 1) : tintWaveA;
-
-    vec3 tintEpiA = getTintEpi(cur);
-    vec3 tintEpiB = (cur < uNumSegments - 1) ? getTintEpi(cur + 1) : tintEpiA;
-
-    // Smooth transition if within the transition zone at the end of the segment
-    if (cur < uNumSegments - 1 && tIn > dur - TRANSITION) {
-        float k = easeInOut(clamp((tIn - (dur - TRANSITION)) / TRANSITION, 0.0, 1.0));
-        s.intensities = mix(intensityA, intensityB, k);
-        s.shapeCounts = mix(shapeCountsA, shapeCountsB, k);
-        s.tintCirc = mix(tintCircA, tintCircB, k);
-        s.tintWave = mix(tintWaveA, tintWaveB, k);
-        s.tintEpi = mix(tintEpiA, tintEpiB, k);
+    if (cur > 0 && tIn < TRANSITION) {
+        float k = easeInOut(clamp(tIn / TRANSITION, 0.0, 1.0));
+        s.intensities = mix(intensityPrev, intensityCurr, k);
+        s.shapeCounts = mix(shapeCountsPrev, shapeCountsCurr, k);
+        s.tintCirc = mix(tintCircPrev, tintCircCurr, k);
+        s.tintWave = mix(tintWavePrev, tintWaveCurr, k);
+        s.tintEpi = mix(tintEpiPrev, tintEpiCurr, k);
+        s.bgColor = mix(bgColorPrev, bgColorCurr, k);
     } else {
-        s.intensities = intensityA;
-        s.shapeCounts = shapeCountsA;
-        s.tintCirc = tintCircA;
-        s.tintWave = tintWaveA;
-        s.tintEpi = tintEpiA;
+        s.intensities = intensityCurr;
+        s.shapeCounts = shapeCountsCurr;
+        s.tintCirc = tintCircCurr;
+        s.tintWave = tintWaveCurr;
+        s.tintEpi = tintEpiCurr;
+        s.bgColor = bgColorCurr;
     }
 
     s.progress = prog;
@@ -299,19 +326,28 @@ vec2 epicycloid(float tt, float R, float r) {
     );
 }
 
-vec3 renderEpicycloids(vec2 p, float t, float inten, vec3 tint, float numEpiFloat) {
+vec3 renderEpicycloids(vec2 p, float t, float inten, vec3 tint, float numEpiFloat, int segmentIndex) {
     if (inten <= 0.0) return vec3(0.0);
     int maxEpi = int(ceil(numEpiFloat));
     maxEpi = clamp(maxEpi, 0, MAX_EPI);
     if (maxEpi == 0) return vec3(0.0);
 
     vec3 outC = vec3(0.0);
+    float epiFactor = clamp(uEpiSampleFactor, 0.05, 2.0);
     for (int i = 0; i < MAX_EPI; i++) {
         if (i >= maxEpi) break;
         // Calcul du fade pour cette forme spécifique
         float shapeAlpha = clamp(numEpiFloat - float(i), 0.0, 1.0);
 
-        int SMPL = E_SAMPLES[i];
+        int offset = getEpiSampleIndex(segmentIndex, i);
+        float uniformSamples = uEpiSamples[offset];
+        if (uniformSamples <= 0.0) {
+            uniformSamples = float(E_SAMPLES[i]);
+        }
+        int baseSamples = int(max(1.0, uniformSamples));
+        int scaledSamples = max(1, int(float(baseSamples) * epiFactor));
+        int capSamples = max(1, int(float(MAX_EPI_SAMPLES) * epiFactor));
+        int SMPL = min(scaledSamples, capSamples);
         float minD = 1e9;
         for (int j = 0; j < MAX_EPI_SAMPLES; j++) {
             if (j >= SMPL) break;
@@ -332,13 +368,12 @@ vec3 renderEpicycloids(vec2 p, float t, float inten, vec3 tint, float numEpiFloa
 // ---------- MAIN ----------
 void main() {
     vec2 p = uvNorm();
-    vec3 col = uBackgroundColor;
-
     SegData seg = getSegment(iTime);
+    vec3 col = seg.bgColor;
 
     col += renderCircles(p, iTime, seg.intensities.x, seg.tintCirc, seg.shapeCounts.x);
     col += renderWaves(p, iTime, seg.intensities.y, seg.tintWave, seg.shapeCounts.z);
-    col += renderEpicycloids(p, iTime, seg.intensities.z, seg.tintEpi, seg.shapeCounts.w);
+    col += renderEpicycloids(p, iTime, seg.intensities.z, seg.tintEpi, seg.shapeCounts.w, seg.idx);
     col += renderExpandingCircles(p, iTime, seg.intensities.w, seg.shapeCounts.y);
 
     gl_FragColor = vec4(col, 1.0);

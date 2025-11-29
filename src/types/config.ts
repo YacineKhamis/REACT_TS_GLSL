@@ -47,6 +47,17 @@ export interface UniformSet {
    */
   expandingCirclesIntensity: UniformScalar;
   /**
+   * Multiplier applied to the epicycloid sample count. Lowering this
+   * value reduces GPU workload at the cost of fidelity.
+   */
+  epicycloidsSampleFactor?: UniformScalar;
+  /**
+   * Optional explicit sample counts for each epicycloid instance. When
+   * provided, overrides the shader's default E_SAMPLES array. Values
+   * are integers representing how many points are evaluated per curve.
+   */
+  epicycloidsSamples?: number[];
+  /**
    * Optional per–shape counts. If provided, the application should
    * propagate these values into the shader's uShapeCountsSeg* uniforms.
    */

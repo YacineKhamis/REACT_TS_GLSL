@@ -37,6 +37,8 @@ const uniformSetSchema = z.object({
   wavesIntensity: z.number(),
   epicycloidsIntensity: z.number(),
   expandingCirclesIntensity: z.number(),
+  epicycloidsSampleFactor: z.number().optional(),
+  epicycloidsSamples: z.array(z.number().int().min(1)).optional(),
   shapeCounts: shapeCountsSchema.optional(),
   tints: tintsSchema.optional(),
 });

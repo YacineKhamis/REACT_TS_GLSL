@@ -5,6 +5,7 @@ import type {
   UniformSet,
 } from '../types/config';
 import { parseProjectConfig } from '../utils/schema';
+import { DEFAULT_EPI_SAMPLES } from '../constants/epicycloids';
 
 /**
  * Utility to generate a pseudo‑unique ID for segments. Using
@@ -25,6 +26,8 @@ const DEFAULT_UNIFORMS: UniformSet = {
   wavesIntensity: 0.5,
   epicycloidsIntensity: 0.5,
   expandingCirclesIntensity: 0.5,
+  epicycloidsSampleFactor: 1,
+  epicycloidsSamples: [...DEFAULT_EPI_SAMPLES],
   shapeCounts: {
     circles: 3,
     waves: 3,
