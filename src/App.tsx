@@ -5,9 +5,10 @@ import PlaybackBar from './components/PlaybackBar';
 import Sidebar from './components/Sidebar';
 import ProjectControls from './components/ProjectControls';
 import SegmentControls from './components/SegmentControls';
+import ErrorBoundary from './components/ErrorBoundary';
 import { useProjectState } from './hooks/useProjectState';
-import type { UniformSet } from './types/config';
 import { DEFAULT_EPI_SAMPLES, MAX_EPI } from './constants/epicycloids';
+import { mergeUniformSets } from './utils/uniformHelpers';
 
 const DEFAULT_SHAPE_COUNTS = { circles: 3, waves: 3, epicycloids: 2, expandingCircles: 2 };
 const DEFAULT_TINT: [number, number, number] = [1, 1, 1];
@@ -23,29 +24,6 @@ const BASE_COLOURS = {
   epi1: new THREE.Color(0xaaaaaa),
   expand: new THREE.Color(0xffa500),
 };
-
-function mergeUniformSets(base: UniformSet, override?: Partial<UniformSet>): UniformSet {
-  if (!override) return base;
-  const cleaned: any = {};
-  Object.keys(override).forEach(key => {
-    const val = (override as any)[key];
-    if (val !== undefined) {
-      cleaned[key] = val;
-    }
-  });
-  return {
-    ...base,
-    ...cleaned,
-    shapeCounts: {
-      ...(base.shapeCounts ?? {}),
-      ...((cleaned.shapeCounts ?? {}) as any),
-    },
-    tints: {
-      ...(base.tints ?? {}),
-      ...((cleaned.tints ?? {}) as any),
-    },
-  };
-}
 
 export default function App() {
   const {
@@ -84,7 +62,8 @@ export default function App() {
   // OPTIMISATION: Ne recalculer les uniforms que quand config change, pas à chaque frame
   const shaderUniforms = useMemo(() => {
     const MAX_SEGMENTS = 20;
-    const uniforms: any = {};
+    // Using Record<string, {value: unknown}> because THREE.js uniforms accept any type
+    const uniforms: Record<string, { value: unknown }> = {};
     const fallbackBg = config.uniforms.backgroundColor;
     
     // Time et resolution - on les initialise mais on ne les met pas à jour ici
@@ -228,7 +207,7 @@ export default function App() {
     }
   }, [saveProject]);
 
-  const handleLoadProject = useCallback((data: any) => {
+  const handleLoadProject = useCallback((data: unknown) => {
     try {
       loadProject(data);
     } catch (err) {
@@ -270,24 +249,26 @@ export default function App() {
           ),
         }}
       />
-      
-      <ThreeScene
-        currentTime={currentTime}
-        isPlaying={isPlaying}
-        totalDuration={totalDuration}
-        setCurrentTime={setCurrentTime}
-        uniforms={shaderUniforms}
-      />
-      
+
+      <ErrorBoundary>
+        <ThreeScene
+          currentTime={currentTime}
+          isPlaying={isPlaying}
+          totalDuration={totalDuration}
+          setCurrentTime={setCurrentTime}
+          uniforms={shaderUniforms}
+        />
+      </ErrorBoundary>
+
       <PlaybackBar
         currentTime={currentTime}
         isPlaying={isPlaying}
         onPlayPause={handlePlayPause}
         onScrub={handleScrub}
         totalDuration={totalDuration}
-        segments={config.segments.map(({ startSec, durationSec }) => ({ 
-          start: startSec, 
-          duration: durationSec 
+        segments={config.segments.map(({ startSec, durationSec }) => ({
+          start: startSec,
+          duration: durationSec
         }))}
       />
     </>

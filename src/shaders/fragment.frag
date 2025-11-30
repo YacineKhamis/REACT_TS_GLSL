@@ -45,6 +45,10 @@ uniform vec3 uTintEpiSeg[MAX_SEGMENTS];
 // into the new one lasts, starting exactly at the new segment's start.
 const float TRANSITION = 10.0;
 
+// Early exit threshold for epicycloid distance calculations
+// When minDist is below this value, we can skip remaining samples
+const float EARLY_EXIT_THRESHOLD = 0.001;
+
 // Segment start and duration are now provided via uniform arrays uSegStart and uSegDur. See above.
 
 const float MASTER_CIRCLES = 1.0;
@@ -354,6 +358,8 @@ vec3 renderEpicycloids(vec2 p, float t, float inten, vec3 tint, float numEpiFloa
             float a = TAU * float(j) / float(SMPL) * 8.0 + t * E_SPEED[i];
             vec2 q = epicycloid(a, E_R[i], E_r[i]) * E_SCALE[i];
             minD = min(minD, length(p - q));
+            // Early exit: if we're already very close, no need to check more samples
+            if (minD < EARLY_EXIT_THRESHOLD) break;
         }
         float line = softBand(minD, E_THICK[i]);
         float glow = E_GLOW[i] * exp(-minD * 100.0);

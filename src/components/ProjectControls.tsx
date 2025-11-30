@@ -8,7 +8,7 @@ interface ProjectControlsProps {
   /** Trigger saving the project configuration. */
   onSave: () => void;
   /** Callback invoked with parsed JSON when a file is loaded. */
-  onLoad: (data: any) => void;
+  onLoad: (data: unknown) => void;
   /** Current global uniforms used by the project. */
   uniforms: UniformSet;
   /** Update handler for the global uniforms. */

@@ -65,34 +65,44 @@ const SegmentControls: React.FC<SegmentControlsProps> = ({
     (next: UniformSet) => {
       // Compute partial overrides by comparing to projectUniforms
       const overrides: Partial<UniformSet> = {};
-      (Object.keys(projectUniforms) as (keyof UniformSet)[]).forEach(key => {
-        const base = (projectUniforms as any)[key];
-        const curr = (next as any)[key];
-        if (typeof base === 'number') {
-          if (base !== curr) {
-            (overrides as any)[key] = curr;
+
+      (Object.keys(projectUniforms) as Array<keyof UniformSet>).forEach(key => {
+        const baseValue = projectUniforms[key];
+        const nextValue = next[key];
+
+        // Handle scalar values (numbers)
+        if (typeof baseValue === 'number' && typeof nextValue === 'number') {
+          if (baseValue !== nextValue) {
+            (overrides as Record<string, unknown>)[key] = nextValue;
           }
-        } else if (Array.isArray(base)) {
-          // compare vectors
-          if (JSON.stringify(base) !== JSON.stringify(curr)) {
-            (overrides as any)[key] = curr;
+        }
+        // Handle arrays (Vec3 colors and epicycloidsSamples)
+        else if (Array.isArray(baseValue) && Array.isArray(nextValue)) {
+          if (JSON.stringify(baseValue) !== JSON.stringify(nextValue)) {
+            (overrides as Record<string, unknown>)[key] = nextValue;
           }
-        } else {
-          // nested objects (shapeCounts or tints)
-          // compute nested diffs
-          const nested: any = {};
-          Object.keys(curr ?? {}).forEach(nKey => {
-            const b = (base ?? {})[nKey];
-            const c = curr ? (curr as any)[nKey] : undefined;
-            if (JSON.stringify(b) !== JSON.stringify(c)) {
-              nested[nKey] = c;
+        }
+        // Handle nested objects (shapeCounts or tints)
+        else if (typeof baseValue === 'object' && !Array.isArray(baseValue) && baseValue !== null) {
+          const baseObj = baseValue as Record<string, unknown>;
+          const nextObj = nextValue as Record<string, unknown> | undefined;
+
+          if (nextObj) {
+            const nested: Record<string, unknown> = {};
+            Object.keys(nextObj).forEach(nKey => {
+              const b = baseObj[nKey];
+              const c = nextObj[nKey];
+              if (JSON.stringify(b) !== JSON.stringify(c)) {
+                nested[nKey] = c;
+              }
+            });
+            if (Object.keys(nested).length > 0) {
+              (overrides as Record<string, unknown>)[key] = nested;
             }
-          });
-          if (Object.keys(nested).length > 0) {
-            (overrides as any)[key] = nested;
           }
         }
       });
+
       // If overrides is empty, pass undefined to clear
       if (Object.keys(overrides).length === 0) {
         onOverrideChange(selectedIndex, undefined);

@@ -6,6 +6,7 @@ import type {
 } from '../types/config';
 import { parseProjectConfig } from '../utils/schema';
 import { DEFAULT_EPI_SAMPLES } from '../constants/epicycloids';
+import { mergeUniformSets, cleanPartialUniformSet } from '../utils/uniformHelpers';
 
 /**
  * Utility to generate a pseudo‑unique ID for segments. Using
@@ -77,37 +78,6 @@ function recalcSegmentTimes(segments: SegmentConfig[]): SegmentConfig[] {
   });
 }
 
-/**
- * Merge two uniform sets, giving precedence to override values. Nested
- * objects (shapeCounts and tints) are merged shallowly. Scalar and
- * vector properties override directly when defined.
- */
-function mergeUniformSets(base: UniformSet, override: Partial<UniformSet> | undefined): UniformSet {
-  if (!override) return base;
-  // Remove keys with undefined values from the override. Without this,
-  // properties like `circlesIntensity: undefined` would override the
-  // base with an undefined, erasing the default value. We want
-  // undefined to behave as "no override".
-  const cleaned: any = {};
-  Object.keys(override).forEach(key => {
-    const val = (override as any)[key];
-    if (val !== undefined) {
-      cleaned[key] = val;
-    }
-  });
-  return {
-    ...base,
-    ...cleaned,
-    shapeCounts: {
-      ...(base.shapeCounts ?? {}),
-      ...((cleaned.shapeCounts ?? {}) as any),
-    },
-    tints: {
-      ...(base.tints ?? {}),
-      ...((cleaned.tints ?? {}) as any),
-    },
-  };
-}
 
 /**
  * Custom hook encapsulating the logic for managing a project's state. It
@@ -230,26 +200,24 @@ export function useProjectState(initialConfig?: ProjectConfig) {
     const segments = config.segments.map((seg, i) => {
       if (i !== index) return seg;
       if (!newOverrides) {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const { uniformsOverride, ...rest } = seg;
         return rest;
       }
       // Filter out undefined values from newOverrides so that they do not
       // overwrite existing values with undefined. Nested objects are
       // filtered separately.
-      const cleaned: any = {};
-      Object.keys(newOverrides).forEach(key => {
-        const val = (newOverrides as any)[key];
-        if (val !== undefined) cleaned[key] = val;
-      });
+      const cleaned = cleanPartialUniformSet(newOverrides);
       const mergedShapeCounts = {
         ...(seg.uniformsOverride?.shapeCounts ?? {}),
-        ...((cleaned.shapeCounts ?? {}) as any),
+        ...(cleaned.shapeCounts ?? {}),
       };
       const mergedTints = {
         ...(seg.uniformsOverride?.tints ?? {}),
-        ...((cleaned.tints ?? {}) as any),
+        ...(cleaned.tints ?? {}),
       };
       // Remove shapeCounts and tints from cleaned to avoid duplication in top level
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { shapeCounts, tints, ...restCleaned } = cleaned;
       return {
         ...seg,

@@ -8,7 +8,7 @@ interface ThreeSceneProps {
   isPlaying: boolean;
   totalDuration: number;
   setCurrentTime: (time: number) => void;
-  uniforms: { [uniform: string]: THREE.IUniform<any> };
+  uniforms: { [uniform: string]: THREE.IUniform<unknown> };
 }
 
 /**
@@ -56,7 +56,9 @@ export default function ThreeScene({
 
   // Initialisation de la scène THREE.js (une seule fois)
   useEffect(() => {
-    if (!containerRef.current) return;
+    // Capturer la référence du container au début de l'effet
+    const container = containerRef.current;
+    if (!container) return;
 
     // Créer la scène
     const scene = new THREE.Scene();
@@ -71,7 +73,7 @@ export default function ThreeScene({
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setPixelRatio(window.devicePixelRatio);
-    containerRef.current.appendChild(renderer.domElement);
+    container.appendChild(renderer.domElement);
     rendererRef.current = renderer;
 
     // Créer le mesh avec le shader
@@ -89,12 +91,12 @@ export default function ThreeScene({
     // Gérer le redimensionnement
     const handleResize = () => {
       if (!camera || !renderer) return;
-      
+
       const width = window.innerWidth;
       const height = window.innerHeight;
-      
+
       renderer.setSize(width, height);
-      
+
       // Mettre à jour l'uniform de résolution
       const mat = mesh.material as THREE.ShaderMaterial;
       if (mat.uniforms.uResolution) {
@@ -131,7 +133,7 @@ export default function ThreeScene({
           newTime = newTime % totalDurationRef.current;
         }
         currentTimeRef.current = newTime;
-        
+
         // Mettre à jour le state React (throttled naturellement par RAF)
         setCurrentTimeRef.current(newTime);
       }
@@ -147,23 +149,24 @@ export default function ThreeScene({
 
     animate();
 
-    // Nettoyage
+    // Nettoyage - utilise la variable locale 'container' capturée au début de l'effet
     return () => {
       window.removeEventListener('resize', handleResize);
-      
+
       if (animationIdRef.current !== null) {
         cancelAnimationFrame(animationIdRef.current);
       }
-      
-      if (containerRef.current && renderer) {
-        containerRef.current.removeChild(renderer.domElement);
+
+      if (container && renderer) {
+        container.removeChild(renderer.domElement);
       }
-      
+
       renderer.dispose();
       geometry.dispose();
       material.dispose();
     };
-  }, []); // Vraiment une seule fois
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Intentionnellement vide - initialise une seule fois. uniforms synchronisé via le second useEffect.
 
   // Mettre à jour les uniforms quand ils changent (sans toucher à iTime)
   useEffect(() => {

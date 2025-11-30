@@ -50,14 +50,14 @@ function hexToVec3(hex: string): UniformVec3 {
  * container to control spacing.
  */
 export const UniformControls: React.FC<UniformControlsProps> = ({ uniforms, onChange }) => {
-  const handleColour = useCallback((key: keyof UniformSet) => (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleColour = useCallback((key: 'backgroundColor') => (e: React.ChangeEvent<HTMLInputElement>) => {
     const next = hexToVec3(e.target.value);
-    onChange({ ...uniforms, [key]: next as any });
+    onChange({ ...uniforms, [key]: next });
   }, [uniforms, onChange]);
 
   const handleScalar = useCallback((key: keyof UniformSet) => (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = parseFloat(e.target.value);
-    onChange({ ...uniforms, [key]: Number.isFinite(val) ? val : 0 } as any);
+    onChange({ ...uniforms, [key]: Number.isFinite(val) ? val : 0 });
   }, [uniforms, onChange]);
 
   /**
@@ -75,7 +75,7 @@ export const UniformControls: React.FC<UniformControlsProps> = ({ uniforms, onCh
         ...(uniforms.shapeCounts ?? {}),
         [shape]: nextCount,
       },
-    } as UniformSet);
+    });
   }, [uniforms, onChange]);
 
   /**
@@ -92,7 +92,7 @@ export const UniformControls: React.FC<UniformControlsProps> = ({ uniforms, onCh
         ...(uniforms.tints ?? {}),
         [shape]: nextVec,
       },
-    } as UniformSet);
+    });
   }, [uniforms, onChange]);
 
   const handleEpiSample = useCallback((index: number) => (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -104,7 +104,7 @@ export const UniformControls: React.FC<UniformControlsProps> = ({ uniforms, onCh
     onChange({
       ...uniforms,
       epicycloidsSamples: nextSamples,
-    } as UniformSet);
+    });
   }, [uniforms, onChange]);
 
   return (
