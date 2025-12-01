@@ -28,6 +28,58 @@ const tintsSchema = z.object({
   expandingCircles: uniformVec3Schema.optional(),
 });
 
+// Shape instance schemas (new system)
+const circleInstanceSchema = z.object({
+  id: z.string(),
+  type: z.literal('circle'),
+  enabled: z.boolean(),
+  radius: z.number(),
+  thickness: z.number(),
+  glow: z.number(),
+  color: uniformVec3Schema,
+});
+
+const expandingCircleInstanceSchema = z.object({
+  id: z.string(),
+  type: z.literal('expandingCircle'),
+  enabled: z.boolean(),
+  period: z.number(),
+  thickness: z.number(),
+  glow: z.number(),
+  maxRadius: z.number(),
+  startTime: z.number(),
+});
+
+const waveInstanceSchema = z.object({
+  id: z.string(),
+  type: z.literal('wave'),
+  enabled: z.boolean(),
+  amplitude: z.number(),
+  frequency: z.number(),
+  speed: z.number(),
+  thickness: z.number(),
+});
+
+const epicycloidInstanceSchema = z.object({
+  id: z.string(),
+  type: z.literal('epicycloid'),
+  enabled: z.boolean(),
+  R: z.number(),
+  r: z.number(),
+  scale: z.number(),
+  thickness: z.number(),
+  speed: z.number(),
+  glow: z.number(),
+  samples: z.number().int().min(1),
+});
+
+const shapeInstanceCollectionSchema = z.object({
+  circles: z.array(circleInstanceSchema),
+  expandingCircles: z.array(expandingCircleInstanceSchema),
+  waves: z.array(waveInstanceSchema),
+  epicycloids: z.array(epicycloidInstanceSchema),
+});
+
 // UniformSet schema. Nous n'annotons plus explicitement le type afin
 // de garder les méthodes Zod (comme .partial()) disponibles. Les
 // champs shapeCounts et tints sont eux-mêmes optionnels.
@@ -52,6 +104,7 @@ const segmentConfigSchema = z.object({
   startSec: z.number().nonnegative(),
   endSec: z.number().nonnegative(),
   uniformsOverride: uniformSetSchema.partial().optional(),
+  shapeInstances: shapeInstanceCollectionSchema.optional(),
 });
 
 // Project schema. The list of segments is validated but further

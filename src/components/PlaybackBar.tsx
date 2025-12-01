@@ -68,40 +68,23 @@ const PlaybackBar: React.FC<PlaybackBarProps> = ({
   };
 
   return (
-    <div
-      style={{
-        position: 'fixed',
-        bottom: 0,
-        left: 0,
-        width: '100%',
-        backgroundColor: 'rgba(0, 0, 0, 0.7)',
-        color: 'white',
-        padding: '10px 20px',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        zIndex: 1000,
-        boxSizing: 'border-box',
-      }}
-    >
+    <div className="fixed bottom-0 left-0 right-0 bg-dark/80 backdrop-blur-sm text-white px-5 py-2.5 flex items-center justify-between z-40">
+      {/* Play/Pause button */}
       <button
         onClick={onPlayPause}
-        style={{
-          padding: '8px 15px',
-          backgroundColor: '#007bff',
-          color: 'white',
-          border: 'none',
-          borderRadius: '5px',
-          cursor: 'pointer',
-          marginRight: '15px',
-        }}
+        className="px-4 py-2 bg-primary text-white rounded-lg mr-4 hover:bg-primary/90 transition-colors"
       >
         {isPlaying ? 'Pause' : 'Play'}
       </button>
-      <div style={{ flexGrow: 1, display: 'flex', alignItems: 'center' }}>
-        <span style={{ marginRight: '10px', minWidth: '80px' }}>
+
+      {/* Timeline controls */}
+      <div className="flex-1 flex items-center gap-2.5">
+        {/* Time display */}
+        <span className="min-w-[140px] text-sm font-mono">
           {formatTime(displayTime)} / {formatTime(totalDuration)}
         </span>
+
+        {/* Scrubber */}
         <input
           type="range"
           min="0"
@@ -113,11 +96,11 @@ const PlaybackBar: React.FC<PlaybackBarProps> = ({
           onMouseUp={handleMouseUp}
           onTouchStart={handleMouseDown}
           onTouchEnd={handleMouseUp}
-          style={{ flexGrow: 1, height: '5px', cursor: 'pointer' }}
+          className="flex-1 h-1.5 cursor-pointer accent-primary"
         />
-        <span
-          style={{ marginLeft: '15px', fontWeight: 'bold', minWidth: '100px', textAlign: 'right' }}
-        >
+
+        {/* Current segment name */}
+        <span className="ml-4 font-bold min-w-[100px] text-right text-sm">
           {getCurrentSegmentName(displayTime)}
         </span>
       </div>

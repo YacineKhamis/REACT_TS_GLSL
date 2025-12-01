@@ -155,4 +155,12 @@ export interface SegmentConfig {
    * specified here fall back to the project's defaults.
    */
   uniformsOverride?: Partial<UniformSet>;
+  /**
+   * Optional shape instances for this segment. When provided, this
+   * represents individual shape instances with their own parameters,
+   * superseding the legacy shapeCounts system. For backward
+   * compatibility, if not present, shapeCounts from uniformsOverride
+   * will be used to generate default instances.
+   */
+  shapeInstances?: import('./shapeInstances').ShapeInstanceCollection;
 }

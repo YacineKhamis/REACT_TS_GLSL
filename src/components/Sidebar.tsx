@@ -12,6 +12,8 @@ interface SidebarProps {
  * passed via props. The caller controls whether the sidebar is open or
  * closed via the `isOpen` prop and toggles it through the `onToggle`
  * callback.
+ *
+ * Now using Tailwind CSS for consistent styling with TimelineModal.
  */
 const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle, tabs }) => {
   const tabKeys = Object.keys(tabs);
@@ -19,60 +21,47 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle, tabs }) => {
 
   return (
     <>
+      {/* Toggle button with proper z-index (below modal z-50) */}
       <button
         onClick={onToggle}
-        style={{
-          position: 'fixed',
-          top: '20px',
-          left: isOpen ? '270px' : '20px',
-          zIndex: 1001,
-          padding: '10px 15px',
-          backgroundColor: '#007bff',
-          color: 'white',
-          border: 'none',
-          borderRadius: '5px',
-          cursor: 'pointer',
-          transition: 'left 0.3s ease-in-out',
-        }}
+        className={`
+          fixed top-5 z-40 px-4 py-2.5 bg-primary text-white rounded-lg
+          transition-all duration-300 ease-in-out hover:bg-primary/90
+          ${isOpen ? 'left-[270px]' : 'left-5'}
+        `}
       >
         {isOpen ? 'Hide UI' : 'Show UI'}
       </button>
+
+      {/* Sidebar panel with z-40 (below modal z-50) */}
       <div
-        style={{
-          position: 'fixed',
-          top: 0,
-          left: isOpen ? 0 : '-250px',
-          width: '250px',
-          height: '100%',
-          backgroundColor: 'rgba(0, 0, 0, 0.8)',
-          color: 'white',
-          padding: '20px',
-          boxSizing: 'border-box',
-          transition: 'left 0.3s ease-in-out',
-          zIndex: 1000,
-          overflowY: 'auto',
-        }}
+        className={`
+          fixed top-0 w-[250px] h-full bg-dark/90 backdrop-blur-sm text-white
+          p-5 pb-20 transition-all duration-300 ease-in-out z-40 overflow-y-auto
+          ${isOpen ? 'left-0' : '-left-[250px]'}
+        `}
       >
-        <div style={{ display: 'flex', borderBottom: '1px solid #444', marginBottom: '20px' }}>
-          {tabKeys.map(tabName => (
+        {/* Tab buttons */}
+        <div className="flex border-b border-dark-border mb-5">
+          {tabKeys.map((tabName) => (
             <button
               key={tabName}
               onClick={() => setActiveTab(tabName)}
-              style={{
-                flex: 1,
-                padding: '10px',
-                backgroundColor: activeTab === tabName ? '#007bff' : 'transparent',
-                color: 'white',
-                border: 'none',
-                cursor: 'pointer',
-                borderBottom: activeTab === tabName ? '2px solid white' : '2px solid transparent',
-                transition: 'background-color 0.2s, border-bottom 0.2s',
-              }}
+              className={`
+                flex-1 py-2.5 px-3 transition-all duration-200
+                ${
+                  activeTab === tabName
+                    ? 'bg-primary text-white border-b-2 border-white'
+                    : 'bg-transparent text-white border-b-2 border-transparent hover:bg-dark-lighter'
+                }
+              `}
             >
               {tabName}
             </button>
           ))}
         </div>
+
+        {/* Tab content */}
         <div key={activeTab}>{tabs[activeTab]}</div>
       </div>
     </>

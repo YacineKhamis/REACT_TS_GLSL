@@ -1,3 +1,7 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 /* Basic global styles for the application. Setting width and height to
    100% ensures the canvas fills the viewport. */
 html,

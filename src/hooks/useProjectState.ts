@@ -233,6 +233,13 @@ export function useProjectState(initialConfig?: ProjectConfig) {
   }, [config.segments, setSegments]);
 
   /**
+   * Update the project name.
+   */
+  const updateProjectName = useCallback((name: string) => {
+    setConfig(prev => ({ ...prev, projectName: name }));
+  }, []);
+
+  /**
    * Determine which segment is active at a given time. Returns the
    * index of the segment. If the time is beyond the last segment, the
    * last index is returned.
@@ -288,6 +295,7 @@ export function useProjectState(initialConfig?: ProjectConfig) {
     removeSegment,
     updateSegmentDuration,
     updateSegmentLabel,
+    updateProjectName,
     updateProjectUniforms,
     updateSegmentOverrides,
     getSegmentIndexForTime,

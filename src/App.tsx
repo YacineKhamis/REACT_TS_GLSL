@@ -2,11 +2,12 @@ import { useCallback, useMemo, useState } from 'react';
 import * as THREE from 'three';
 import ThreeScene from './components/ThreeScene';
 import PlaybackBar from './components/PlaybackBar';
-import Sidebar from './components/Sidebar';
-import ProjectControls from './components/ProjectControls';
-import SegmentControls from './components/SegmentControls';
 import ErrorBoundary from './components/ErrorBoundary';
+import { Dashboard } from './components/Dashboard/Dashboard';
+import { ProjectModal } from './components/ProjectModal/ProjectModal';
+import { TimelineModal } from './components/TimelineModal/TimelineModal';
 import { useProjectState } from './hooks/useProjectState';
+import { useAppNavigation } from './hooks/useAppNavigation';
 import { DEFAULT_EPI_SAMPLES, MAX_EPI } from './constants/epicycloids';
 import { mergeUniformSets } from './utils/uniformHelpers';
 
@@ -38,14 +39,17 @@ export default function App() {
     removeSegment,
     updateSegmentDuration,
     updateSegmentLabel,
+    updateProjectName,
     updateProjectUniforms,
-    updateSegmentOverrides,
     saveProject,
     loadProject,
     resolveUniformsForTime,
   } = useProjectState();
 
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isDashboardVisible, setIsDashboardVisible] = useState(true);
+
+  // Navigation state
+  const navigation = useAppNavigation();
 
   const handlePlayPause = useCallback(() => {
     setIsPlaying(prev => !prev);
@@ -218,37 +222,34 @@ export default function App() {
 
   return (
     <>
-      <Sidebar
-        isOpen={isSidebarOpen}
-        onToggle={() => setIsSidebarOpen(prev => !prev)}
-        tabs={{
-          Projet: (
-            <ProjectControls
-              uniforms={config.uniforms}
-              onUniformsChange={updateProjectUniforms}
-              onNew={() => {
-                if (window.confirm('Êtes-vous sûr de vouloir créer un nouveau projet ? Toutes les modifications non sauvegardées seront perdues.')) {
-                  window.location.reload();
-                }
-              }}
-              onSave={handleSaveProject}
-              onLoad={handleLoadProject}
+      {/* Dashboard toggle button - always visible on home view */}
+      {navigation.isHome && (
+        <>
+          <button
+            onClick={() => {
+              console.log('Button clicked! Current state:', isDashboardVisible);
+              setIsDashboardVisible(prev => !prev);
+            }}
+            className="fixed top-5 left-5 z-30 px-4 py-2.5 bg-primary text-white rounded-lg transition-all duration-300 ease-in-out hover:bg-primary/90"
+          >
+            {isDashboardVisible ? 'Hide Dashboard' : 'Show Dashboard'}
+          </button>
+
+          {/* Dashboard content */}
+          {isDashboardVisible && (
+            <Dashboard
+              projectName={config.projectName}
+              fps={config.fps}
+              segmentCount={config.segments.length}
+              totalDuration={totalDuration}
+              isVisible={isDashboardVisible}
+              onToggleVisibility={() => setIsDashboardVisible(prev => !prev)}
+              onEditProject={navigation.openProject}
+              onEditTimeline={navigation.openTimeline}
             />
-          ),
-          Segments: (
-            <SegmentControls
-              segments={config.segments}
-              projectUniforms={config.uniforms}
-              onDurationChange={updateSegmentDuration}
-              onLabelChange={updateSegmentLabel}
-              onOverrideChange={updateSegmentOverrides}
-              onAdd={addSegment}
-              onDuplicate={duplicateSegment}
-              onRemove={removeSegment}
-            />
-          ),
-        }}
-      />
+          )}
+        </>
+      )}
 
       <ErrorBoundary>
         <ThreeScene
@@ -270,6 +271,35 @@ export default function App() {
           start: startSec,
           duration: durationSec
         }))}
+      />
+
+      <ProjectModal
+        isOpen={navigation.isProjectOpen}
+        onClose={navigation.goHome}
+        projectName={config.projectName}
+        onProjectNameChange={updateProjectName}
+        uniforms={config.uniforms}
+        onUniformsChange={updateProjectUniforms}
+        onNew={() => {
+          if (window.confirm('Are you sure you want to create a new project? All unsaved changes will be lost.')) {
+            window.location.reload();
+          }
+        }}
+        onSave={handleSaveProject}
+        onLoad={handleLoadProject}
+      />
+
+      <TimelineModal
+        isOpen={navigation.isTimelineOpen}
+        onClose={navigation.goHome}
+        segments={config.segments}
+        selectedSegmentIndex={0}
+        onSelectSegment={() => {}}
+        onAddSegment={addSegment}
+        onDuplicateSegment={duplicateSegment}
+        onDeleteSegment={removeSegment}
+        onUpdateSegmentLabel={updateSegmentLabel}
+        onUpdateSegmentDuration={updateSegmentDuration}
       />
     </>
   );
