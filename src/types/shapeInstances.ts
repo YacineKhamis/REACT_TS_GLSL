@@ -15,17 +15,21 @@ export interface CircleInstance extends ShapeInstanceBase {
   radius: number; // Override C_R[i]
   thickness: number; // Override C_THICK[i]
   glow: number; // Override C_GLOW[i]
-  color: [number, number, number]; // RGB normalized [0-1]
+  intensity: number; // Individual instance intensity (0-1), replaces master circlesIntensity
+  color: [number, number, number]; // RGB normalized [0-1], per-instance color
 }
 
 // Expanding circle instance (animated outward)
 export interface ExpandingCircleInstance extends ShapeInstanceBase {
   type: 'expandingCircle';
+  startRadius: number; // Starting radius (NEW - circles begin expanding from this radius)
   period: number; // Override EXPAND_PERIOD
   thickness: number; // Override EXPAND_THICKNESS
   glow: number; // Override EXPAND_GLOW
   maxRadius: number; // Override EXPAND_MAX_RADIUS
   startTime: number; // Offset within segment (seconds)
+  intensity: number; // Individual instance intensity (0-1), replaces master expandingCirclesIntensity
+  color: [number, number, number]; // RGB normalized [0-1], per-instance color
 }
 
 // Wave instance (animated sine wave)
@@ -35,6 +39,9 @@ export interface WaveInstance extends ShapeInstanceBase {
   frequency: number; // Override W_FREQ[i]
   speed: number; // Override W_SPEED[i]
   thickness: number; // Override W_THICK[i]
+  glow: number; // Override W_GLOW[i]
+  intensity: number; // Individual instance intensity (0-1), replaces master wavesIntensity
+  color: [number, number, number]; // RGB normalized [0-1], per-instance color
 }
 
 // Epicycloid instance (parametric curve)
@@ -47,6 +54,8 @@ export interface EpicycloidInstance extends ShapeInstanceBase {
   speed: number; // Animation speed - Override E_SPEED[i]
   glow: number; // Glow intensity - Override E_GLOW[i]
   samples: number; // Number of samples for rendering - Override E_SAMPLES[i]
+  intensity: number; // Individual instance intensity (0-1), replaces master epicycloidsIntensity
+  color: [number, number, number]; // RGB normalized [0-1], per-instance color
 }
 
 // Union type for all shape instances

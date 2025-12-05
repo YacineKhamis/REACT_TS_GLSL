@@ -19,33 +19,57 @@ export type UniformScalar = number;
 export type UniformVec3 = [number, number, number];
 
 /**
+ * Project-level maximum shape instance counts.
+ * Defines the maximum number of instances allowed per shape type for the entire project.
+ * Each segment can then use up to these limits.
+ */
+export interface ShapeLimits {
+  /** Maximum number of fixed circle instances (default: 8) */
+  circles: number;
+  /** Maximum number of wave instances (default: 8) */
+  waves: number;
+  /** Maximum number of epicycloid instances (default: 8) */
+  epicycloids: number;
+  /** Maximum number of expanding circle instances (default: 8) */
+  expandingCircles: number;
+}
+
+/**
  * A set of uniform values. This object represents the high level
  * parameters used to drive the fragment shader. Optional fields allow
  * segments to override only specific properties without redefining
  * everything. See the fragment shader for how these values map to
  * uniforms such as uIntensitySegX and uTint*.
+ *
+ * DEPRECATED: Most fields are deprecated in favor of per-instance parameters
+ * in ShapeInstanceCollection. Kept for backward compatibility and migration.
  */
 export interface UniformSet {
   /**
    * Background colour of the scene.
+   * @deprecated Use SegmentConfig.backgroundColor instead (per-segment)
    */
   backgroundColor: UniformVec3;
   /**
    * Master intensity for circular shapes.
+   * @deprecated Use CircleInstance.intensity instead (per-instance)
    */
-  circlesIntensity: UniformScalar;
+  circlesIntensity?: UniformScalar;
   /**
    * Master intensity for wave shapes.
+   * @deprecated Use WaveInstance.intensity instead (per-instance)
    */
-  wavesIntensity: UniformScalar;
+  wavesIntensity?: UniformScalar;
   /**
    * Master intensity for epicycloid shapes.
+   * @deprecated Use EpicycloidInstance.intensity instead (per-instance)
    */
-  epicycloidsIntensity: UniformScalar;
+  epicycloidsIntensity?: UniformScalar;
   /**
    * Master intensity for expanding circles.
+   * @deprecated Use ExpandingCircleInstance.intensity instead (per-instance)
    */
-  expandingCirclesIntensity: UniformScalar;
+  expandingCirclesIntensity?: UniformScalar;
   /**
    * Multiplier applied to the epicycloid sample count. Lowering this
    * value reduces GPU workload at the cost of fidelity.
@@ -60,13 +84,14 @@ export interface UniformSet {
   /**
    * Optional per–shape counts. If provided, the application should
    * propagate these values into the shader's uShapeCountsSeg* uniforms.
+   * @deprecated Use shapeInstances.length instead (per-instance counts)
    */
   shapeCounts?: {
     /** Nombre de cercles à dessiner. Si non défini, la valeur par défaut est utilisée. */
     circles?: number;
     /** Nombre de vagues à dessiner. Si non défini, la valeur par défaut est utilisée. */
     waves?: number;
-    /** Nombre d’épicycloïdes à dessiner. Si non défini, la valeur par défaut est utilisée. */
+    /** Nombre d'épicycloïdes à dessiner. Si non défini, la valeur par défaut est utilisée. */
     epicycloids?: number;
     /** Nombre de cercles expansifs à dessiner. Si non défini, la valeur par défaut est utilisée. */
     expandingCircles?: number;
@@ -75,6 +100,7 @@ export interface UniformSet {
    * Optional tints for each shape category. When undefined, the default
    * colour from the shader remains in effect. Colours are specified as
    * normalised RGB triples.
+   * @deprecated Use instance.color instead (per-instance colors)
    */
   tints?: {
     /** Teinte appliquée au fond. Si non défini, aucun effet. */
@@ -107,7 +133,19 @@ export interface ProjectConfig {
    */
   fps: number;
   /**
+   * Optional resolution setting (e.g., "1080p", "720p", "4K").
+   * Currently for display purposes only.
+   */
+  resolution?: string;
+  /**
+   * Project-level maximum shape instance counts.
+   * Defines the upper limit for each shape type across all segments.
+   */
+  maxShapeLimits: ShapeLimits;
+  /**
    * Global uniform defaults applied to all segments unless overridden.
+   * @deprecated Most fields deprecated in favor of per-segment and per-instance parameters.
+   * Kept for backward compatibility and migration.
    */
   uniforms: UniformSet;
   /**
@@ -150,17 +188,31 @@ export interface SegmentConfig {
    */
   endSec: number;
   /**
+   * Duration in seconds for interpolating from the previous segment's values
+   * to this segment's values. The transition starts at the beginning of this
+   * segment and lasts for the specified duration. Set to 0 for instant transition.
+   */
+  transitionDuration: number;
+  /**
+   * Background color for this segment. Overrides project-level background.
+   */
+  backgroundColor: UniformVec3;
+  /**
+   * Optional global color multiplier/tint applied to all shapes in this segment.
+   * If undefined, no tint is applied (values default to [1, 1, 1]).
+   */
+  tint?: UniformVec3;
+  /**
+   * Shape instances for this segment with per-instance parameters.
+   * This is now REQUIRED and replaces the legacy shapeCounts system.
+   */
+  shapeInstances: import('./shapeInstances').ShapeInstanceCollection;
+  /**
    * Optional overrides for uniforms for this segment. Overrides
    * partially shadow the project's global uniform set. Any fields not
    * specified here fall back to the project's defaults.
+   * @deprecated Use per-segment fields (backgroundColor, transitionDuration) and
+   * shapeInstances instead. Kept for backward compatibility and migration only.
    */
   uniformsOverride?: Partial<UniformSet>;
-  /**
-   * Optional shape instances for this segment. When provided, this
-   * represents individual shape instances with their own parameters,
-   * superseding the legacy shapeCounts system. For backward
-   * compatibility, if not present, shapeCounts from uniformsOverride
-   * will be used to generate default instances.
-   */
-  shapeInstances?: import('./shapeInstances').ShapeInstanceCollection;
 }

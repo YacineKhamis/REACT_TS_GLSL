@@ -150,9 +150,9 @@ export function SegmentItem({
             onDuplicate();
           }}
           className="flex-1 px-2 py-1 bg-dark border border-dark-border rounded text-xs text-white hover:bg-dark-lighter transition-colors"
-          title="Duplicate segment"
+          title="Copy segment"
         >
-          Duplicate
+          Copy
         </button>
         <button
           onClick={(e) => {
@@ -161,10 +161,10 @@ export function SegmentItem({
               onDelete();
             }
           }}
-          className="flex-1 px-2 py-1 bg-red-900/30 border border-red-700 rounded text-xs text-red-300 hover:bg-red-900/50 transition-colors"
+          className="px-3 py-1 bg-red-900/30 border border-red-700 rounded text-xs text-red-300 hover:bg-red-900/50 transition-colors font-bold"
           title="Delete segment"
         >
-          Delete
+          -
         </button>
       </div>
     </div>

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import vertexShader from '../shaders/vertex.vert';
 import fragmentShader from '../shaders/fragment.frag';
@@ -30,7 +30,9 @@ export default function ThreeScene({
   const meshRef = useRef<THREE.Mesh | null>(null);
   const animationIdRef = useRef<number | null>(null);
   const lastFrameTimeRef = useRef<number>(0);
-  
+
+  const [isReady, setIsReady] = useState(false);
+
   // Refs pour éviter les re-renders
   const currentTimeRef = useRef(currentTime);
   const isPlayingRef = useRef(isPlaying);
@@ -60,6 +62,14 @@ export default function ThreeScene({
     const container = containerRef.current;
     if (!container) return;
 
+    // Attendre que le container ait une taille avant d'initialiser
+    if (container.clientWidth === 0 || container.clientHeight === 0) {
+      const checkSize = requestAnimationFrame(() => {
+        setIsReady(true); // Force re-render when container is ready
+      });
+      return () => cancelAnimationFrame(checkSize);
+    }
+
     // Créer la scène
     const scene = new THREE.Scene();
     sceneRef.current = scene;
@@ -71,7 +81,9 @@ export default function ThreeScene({
 
     // Créer le renderer
     const renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setSize(window.innerWidth, window.innerHeight);
+    const width = container.clientWidth || window.innerWidth;
+    const height = container.clientHeight || window.innerHeight;
+    renderer.setSize(width, height);
     renderer.setPixelRatio(window.devicePixelRatio);
     container.appendChild(renderer.domElement);
     rendererRef.current = renderer;
@@ -90,10 +102,10 @@ export default function ThreeScene({
 
     // Gérer le redimensionnement
     const handleResize = () => {
-      if (!camera || !renderer) return;
+      if (!camera || !renderer || !container) return;
 
-      const width = window.innerWidth;
-      const height = window.innerHeight;
+      const width = container.clientWidth || window.innerWidth;
+      const height = container.clientHeight || window.innerHeight;
 
       renderer.setSize(width, height);
 
@@ -104,12 +116,21 @@ export default function ThreeScene({
       }
     };
 
-    window.addEventListener('resize', handleResize);
-
     // Initialiser la résolution
     if (material.uniforms.uResolution) {
-      material.uniforms.uResolution.value.set(window.innerWidth, window.innerHeight);
+      material.uniforms.uResolution.value.set(width, height);
     }
+
+    // Observer pour détecter les changements de taille du conteneur
+    const resizeObserver = new ResizeObserver(() => {
+      handleResize();
+    });
+    resizeObserver.observe(container);
+
+    window.addEventListener('resize', handleResize);
+
+    // Forcer une mise à jour initiale après un court délai (pour laisser le DOM se stabiliser)
+    setTimeout(() => handleResize(), 0);
 
     // Initialiser le temps de la dernière frame
     lastFrameTimeRef.current = performance.now();
@@ -151,6 +172,7 @@ export default function ThreeScene({
 
     // Nettoyage - utilise la variable locale 'container' capturée au début de l'effet
     return () => {
+      resizeObserver.disconnect();
       window.removeEventListener('resize', handleResize);
 
       if (animationIdRef.current !== null) {
@@ -166,21 +188,22 @@ export default function ThreeScene({
       material.dispose();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Intentionnellement vide - initialise une seule fois. uniforms synchronisé via le second useEffect.
+  }, [isReady]); // Re-run when container becomes ready
 
-  // Mettre à jour les uniforms quand ils changent (sans toucher à iTime)
+  // Mettre à jour les uniforms quand ils changent (sans toucher à iTime et uResolution)
   useEffect(() => {
     if (!meshRef.current) return;
-    
+
     const material = meshRef.current.material as THREE.ShaderMaterial;
-    
-    // Mettre à jour tous les uniforms SAUF iTime
+
+    // Mettre à jour tous les uniforms SAUF iTime et uResolution
+    // uResolution est géré par handleResize pour s'adapter au conteneur
     Object.keys(uniforms).forEach(key => {
-      if (key !== 'iTime' && material.uniforms[key]) {
+      if (key !== 'iTime' && key !== 'uResolution' && material.uniforms[key]) {
         material.uniforms[key].value = uniforms[key].value;
       }
     });
-    
+
     material.uniformsNeedUpdate = true;
   }, [uniforms]);
 
@@ -188,9 +211,8 @@ export default function ThreeScene({
     <div
       ref={containerRef}
       style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
+        position: 'absolute',
+        inset: 0,
         width: '100%',
         height: '100%',
         overflow: 'hidden',

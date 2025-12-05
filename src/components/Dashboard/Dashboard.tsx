@@ -11,8 +11,8 @@ interface DashboardProps {
   fps: number;
   segmentCount: number;
   totalDuration: number;
-  isVisible: boolean;
-  onToggleVisibility: () => void;
+  isVisible?: boolean;
+  onToggleVisibility?: () => void;
   onEditProject: () => void;
   onEditTimeline: () => void;
 }
@@ -22,8 +22,6 @@ export function Dashboard({
   fps,
   segmentCount,
   totalDuration,
-  isVisible,
-  onToggleVisibility,
   onEditProject,
   onEditTimeline,
 }: DashboardProps) {

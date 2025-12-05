@@ -3,10 +3,14 @@ import type {
   ProjectConfig,
   SegmentConfig,
   UniformSet,
+  UniformVec3,
+  ShapeLimits,
 } from '../types/config';
+import type { ShapeInstanceCollection } from '../types/shapeInstances';
 import { parseProjectConfig } from '../utils/schema';
-import { DEFAULT_EPI_SAMPLES } from '../constants/epicycloids';
 import { mergeUniformSets, cleanPartialUniformSet } from '../utils/uniformHelpers';
+import { migrateProject } from '../utils/migration';
+import { createEmptyCollection } from '../types/shapeInstances';
 
 /**
  * Utility to generate a pseudo‑unique ID for segments. Using
@@ -17,35 +21,32 @@ function generateId(): string {
 }
 
 /**
- * Default global uniform values. These match the defaults hard coded
- * in the fragment shader for colours and intensities. Feel free to
- * adjust these as sensible defaults for new projects.
+ * Default project-level shape limits (matches shader MAX constants).
+ */
+const DEFAULT_SHAPE_LIMITS: ShapeLimits = {
+  circles: 8,
+  waves: 8,
+  epicycloids: 8,
+  expandingCircles: 8,
+};
+
+/**
+ * Default transition duration for new segments (in seconds).
+ */
+const DEFAULT_SEGMENT_TRANSITION = 1.0;
+
+/**
+ * Default global uniform values (DEPRECATED - kept for backward compatibility).
+ * Most of these are replaced by per-segment and per-instance parameters.
  */
 const DEFAULT_UNIFORMS: UniformSet = {
-  backgroundColor: [0, 0, 0],
-  circlesIntensity: 0.5,
-  wavesIntensity: 0.5,
-  epicycloidsIntensity: 0.5,
-  expandingCirclesIntensity: 0.5,
+  backgroundColor: [0, 0, 0], // Fallback only
   epicycloidsSampleFactor: 1,
-  epicycloidsSamples: [...DEFAULT_EPI_SAMPLES],
-  shapeCounts: {
-    circles: 3,
-    waves: 3,
-    epicycloids: 2,
-    expandingCircles: 2,
-  },
-  tints: {
-    circles: [1, 1, 1],
-    waves: [1, 1, 1],
-    epicycloids: [1, 1, 1],
-    expandingCircles: [1, 1, 1],
-  },
 };
 
 /**
  * Create a minimal project configuration for new documents. The
- * timeline starts with one 10‑second segment.
+ * timeline starts with one 10‑second segment with empty shape instances.
  */
 function createDefaultProject(): ProjectConfig {
   const segment: SegmentConfig = {
@@ -54,10 +55,14 @@ function createDefaultProject(): ProjectConfig {
     durationSec: 10,
     startSec: 0,
     endSec: 10,
+    transitionDuration: DEFAULT_SEGMENT_TRANSITION,
+    backgroundColor: [0, 0, 0],
+    shapeInstances: createEmptyCollection(),
   };
   return {
     projectName: 'Untitled',
     fps: 60,
+    maxShapeLimits: { ...DEFAULT_SHAPE_LIMITS },
     uniforms: { ...DEFAULT_UNIFORMS },
     segments: [segment],
   };
@@ -113,8 +118,7 @@ export function useProjectState(initialConfig?: ProjectConfig) {
   );
 
   /**
-   * Add a new segment to the end of the timeline. The new segment
-   * inherits the project's default uniforms by default.
+   * Add a new segment to the end of the timeline with default values.
    */
   const addSegment = useCallback(() => {
     setSegments([...config.segments, {
@@ -123,13 +127,15 @@ export function useProjectState(initialConfig?: ProjectConfig) {
       durationSec: 10,
       startSec: 0,
       endSec: 0,
+      transitionDuration: DEFAULT_SEGMENT_TRANSITION,
+      backgroundColor: [0, 0, 0],
+      shapeInstances: createEmptyCollection(),
     }]);
   }, [config.segments, setSegments]);
 
   /**
    * Duplicate an existing segment. The copy will be inserted after the
-   * source index and given a new ID. Overrides, if present, are
-   * deep‑copied.
+   * source index and given a new ID. Shape instances are deep-copied.
    */
   const duplicateSegment = useCallback((index: number) => {
     const target = config.segments[index];
@@ -138,17 +144,14 @@ export function useProjectState(initialConfig?: ProjectConfig) {
       ...target,
       id: generateId(),
       label: `${target.label} copy`,
-      uniformsOverride: target.uniformsOverride
-        ? {
-            ...target.uniformsOverride,
-            shapeCounts: target.uniformsOverride.shapeCounts
-              ? { ...target.uniformsOverride.shapeCounts }
-              : undefined,
-            tints: target.uniformsOverride.tints
-              ? { ...target.uniformsOverride.tints }
-              : undefined,
-          }
-        : undefined,
+      backgroundColor: [...target.backgroundColor] as UniformVec3,
+      tint: target.tint ? ([...target.tint] as UniformVec3) : undefined,
+      shapeInstances: {
+        circles: target.shapeInstances.circles.map(c => ({ ...c, id: generateId() })),
+        waves: target.shapeInstances.waves.map(w => ({ ...w, id: generateId() })),
+        epicycloids: target.shapeInstances.epicycloids.map(e => ({ ...e, id: generateId() })),
+        expandingCircles: target.shapeInstances.expandingCircles.map(ec => ({ ...ec, id: generateId() })),
+      },
     };
     const segments = [...config.segments];
     segments.splice(index + 1, 0, clone);
@@ -240,6 +243,67 @@ export function useProjectState(initialConfig?: ProjectConfig) {
   }, []);
 
   /**
+   * Update the project-level maximum shape limits.
+   */
+  const updateMaxShapeLimits = useCallback((limits: ShapeLimits) => {
+    setConfig(prev => ({ ...prev, maxShapeLimits: limits }));
+  }, []);
+
+  /**
+   * Update the transition duration for a specific segment.
+   */
+  const updateSegmentTransition = useCallback((index: number, duration: number) => {
+    const segments = config.segments.map((seg, i) =>
+      i === index ? { ...seg, transitionDuration: Math.max(0, duration) } : seg
+    );
+    setSegments(segments);
+  }, [config.segments, setSegments]);
+
+  /**
+   * Update the background color for a specific segment.
+   */
+  const updateSegmentBackground = useCallback((index: number, color: UniformVec3) => {
+    const segments = config.segments.map((seg, i) =>
+      i === index ? { ...seg, backgroundColor: color } : seg
+    );
+    setSegments(segments);
+  }, [config.segments, setSegments]);
+
+  /**
+   * Update the tint (color multiplier) for a specific segment.
+   */
+  const updateSegmentTint = useCallback((index: number, tint: UniformVec3 | undefined) => {
+    const segments = config.segments.map((seg, i) =>
+      i === index ? { ...seg, tint } : seg
+    );
+    setSegments(segments);
+  }, [config.segments, setSegments]);
+
+  /**
+   * Update the shape instances for a specific segment.
+   * Validates that instance counts don't exceed project maximum limits.
+   */
+  const updateSegmentShapeInstances = useCallback(
+    (index: number, instances: ShapeInstanceCollection) => {
+      const limits = config.maxShapeLimits;
+      if (
+        instances.circles.length > limits.circles ||
+        instances.waves.length > limits.waves ||
+        instances.epicycloids.length > limits.epicycloids ||
+        instances.expandingCircles.length > limits.expandingCircles
+      ) {
+        throw new Error('Shape instance count exceeds project maximum limits');
+      }
+
+      const segments = config.segments.map((seg, i) =>
+        i === index ? { ...seg, shapeInstances: instances } : seg
+      );
+      setSegments(segments);
+    },
+    [config.segments, config.maxShapeLimits, setSegments]
+  );
+
+  /**
    * Determine which segment is active at a given time. Returns the
    * index of the segment. If the time is beyond the last segment, the
    * last index is returned.
@@ -272,14 +336,19 @@ export function useProjectState(initialConfig?: ProjectConfig) {
   }, [config]);
 
   /**
-   * Load a project from arbitrary JSON data. Validation is performed
+   * Load a project from arbitrary JSON data. Automatically migrates old
+   * project formats to the current version. Validation is performed
    * using the Zod schema; if parsing fails, the caller must handle the
    * thrown error. Start and end times are recalculated after loading.
    */
   const loadProject = useCallback((data: unknown) => {
-    const parsed = parseProjectConfig(data);
+    // Migrate project to current version if needed
+    const migrated = migrateProject(data as Record<string, unknown>);
+    const parsed = parseProjectConfig(migrated);
     const segments = recalcSegmentTimes(parsed.segments);
     setConfig({ ...parsed, segments });
+    setCurrentTime(0);
+    setIsPlaying(false);
   }, []);
 
   return {
@@ -296,6 +365,11 @@ export function useProjectState(initialConfig?: ProjectConfig) {
     updateSegmentDuration,
     updateSegmentLabel,
     updateProjectName,
+    updateMaxShapeLimits,
+    updateSegmentTransition,
+    updateSegmentBackground,
+    updateSegmentTint,
+    updateSegmentShapeInstances,
     updateProjectUniforms,
     updateSegmentOverrides,
     getSegmentIndexForTime,

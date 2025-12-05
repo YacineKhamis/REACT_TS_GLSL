@@ -5,7 +5,7 @@
  */
 
 import * as Dialog from '@radix-ui/react-dialog';
-import type { UniformSet } from '../../types/config';
+import type { UniformSet, ShapeLimits } from '../../types/config';
 import { ProjectSettings } from './ProjectSettings';
 
 interface ProjectModalProps {
@@ -13,6 +13,9 @@ interface ProjectModalProps {
   onClose: () => void;
   projectName: string;
   onProjectNameChange: (name: string) => void;
+  fps: number;
+  maxShapeLimits: ShapeLimits;
+  onMaxShapeLimitsChange: (limits: ShapeLimits) => void;
   uniforms: UniformSet;
   onUniformsChange: (uniforms: UniformSet) => void;
   onNew: () => void;
@@ -25,6 +28,9 @@ export function ProjectModal({
   onClose,
   projectName,
   onProjectNameChange,
+  fps,
+  maxShapeLimits,
+  onMaxShapeLimitsChange,
   uniforms,
   onUniformsChange,
   onNew,
@@ -83,6 +89,9 @@ export function ProjectModal({
               <ProjectSettings
                 projectName={projectName}
                 onProjectNameChange={onProjectNameChange}
+                fps={fps}
+                maxShapeLimits={maxShapeLimits}
+                onMaxShapeLimitsChange={onMaxShapeLimitsChange}
                 uniforms={uniforms}
                 onUniformsChange={onUniformsChange}
                 onNew={onNew}

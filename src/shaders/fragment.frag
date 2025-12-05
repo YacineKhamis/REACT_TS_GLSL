@@ -1,59 +1,66 @@
 // ========================================
 // FRAGMENT SHADER — Timeline modulaire FLEXIBLE
+// Per-instance parameters with smooth interpolation
 // ========================================
 
 // ------------ UNIFORMS MINIMALES ------------
 #define MAX_SEGMENTS 20
-#define MAX_EPI_PER_SEGMENT 8
+#define MAX_INSTANCES 8
 uniform vec2 uResolution;
 uniform float iTime;
 
-// Couleurs principales
-uniform vec3 uBackgroundColor;
-uniform vec3 uCircleColor0, uCircleColor1, uCircleColor2;
-uniform vec3 uWaveColor0, uWaveColor1, uWaveColor2;
-uniform vec3 uEpiColor0, uEpiColor1;
-uniform vec3 uExpandColor;
+// Global settings
 uniform float uEpiSampleFactor;
-uniform float uEpiSamples[MAX_SEGMENTS * MAX_EPI_PER_SEGMENT];
+
+// Per-segment background colors
 uniform vec3 uBgColorSeg[MAX_SEGMENTS];
 
-// ---------- TIMELINE UNIFORMS ----------
-// In order to support a variable number of segments, the timing and
-// per‑segment parameters are provided as uniform arrays. uNumSegments
-// defines how many entries in these arrays are considered valid.
-// MAX_SEGMENTS defines the maximum number supported by the shader.
+// Per-instance uniforms for current and previous segment only (2 * MAX_INSTANCES = 16 slots each)
+// Index 0-7: previous segment, Index 8-15: current segment
+#define TOTAL_INSTANCE_SLOTS 16
+uniform vec3 uCircleColors[TOTAL_INSTANCE_SLOTS];
+uniform float uCircleIntensities[TOTAL_INSTANCE_SLOTS];
+uniform vec3 uWaveColors[TOTAL_INSTANCE_SLOTS];
+uniform float uWaveIntensities[TOTAL_INSTANCE_SLOTS];
+uniform vec3 uEpiColors[TOTAL_INSTANCE_SLOTS];
+uniform float uEpiIntensities[TOTAL_INSTANCE_SLOTS];
+uniform vec3 uExpandColors[TOTAL_INSTANCE_SLOTS];
+uniform float uExpandIntensities[TOTAL_INSTANCE_SLOTS];
+uniform float uExpandStartRadius[TOTAL_INSTANCE_SLOTS];
 
+// Per-instance geometric parameters
+uniform float uCircleRadius[TOTAL_INSTANCE_SLOTS];
+uniform float uCircleThickness[TOTAL_INSTANCE_SLOTS];
+uniform float uCircleGlow[TOTAL_INSTANCE_SLOTS];
+uniform float uExpandPeriod[TOTAL_INSTANCE_SLOTS];
+uniform float uExpandThickness[TOTAL_INSTANCE_SLOTS];
+uniform float uExpandGlow[TOTAL_INSTANCE_SLOTS];
+uniform float uExpandMaxRadius[TOTAL_INSTANCE_SLOTS];
+uniform float uExpandStartTime[TOTAL_INSTANCE_SLOTS];
+uniform float uWaveAmplitude[TOTAL_INSTANCE_SLOTS];
+uniform float uWaveFrequency[TOTAL_INSTANCE_SLOTS];
+uniform float uWaveSpeed[TOTAL_INSTANCE_SLOTS];
+uniform float uWaveThickness[TOTAL_INSTANCE_SLOTS];
+uniform float uWaveGlow[TOTAL_INSTANCE_SLOTS];
+uniform float uEpiR[TOTAL_INSTANCE_SLOTS];
+uniform float uEpir[TOTAL_INSTANCE_SLOTS];
+uniform float uEpiScale[TOTAL_INSTANCE_SLOTS];
+uniform float uEpiThickness[TOTAL_INSTANCE_SLOTS];
+uniform float uEpiSpeed[TOTAL_INSTANCE_SLOTS];
+uniform float uEpiGlow[TOTAL_INSTANCE_SLOTS];
+uniform int uEpiSamples[TOTAL_INSTANCE_SLOTS];
+
+// ---------- TIMELINE UNIFORMS ----------
 uniform int uNumSegments;
 uniform float uSegStart[MAX_SEGMENTS];
 uniform float uSegDur[MAX_SEGMENTS];
-// Format vec4: .x = intensity circles, .y = intensity waves, .z = intensity epicycloids, .w = intensity expand
-uniform vec4 uIntensitySeg[MAX_SEGMENTS];
+uniform float uSegTransitionDur[MAX_SEGMENTS];
 // Format vec4: .x = nb circles, .y = nb expand circles, .z = nb waves, .w = nb epis
 uniform vec4 uShapeCountsSeg[MAX_SEGMENTS];
-// Per‑segment tints for circles, waves and epicycloids
-uniform vec3 uTintCircSeg[MAX_SEGMENTS];
-uniform vec3 uTintWaveSeg[MAX_SEGMENTS];
-uniform vec3 uTintEpiSeg[MAX_SEGMENTS];
 
 // ---------- CONSTANTES ----------
-// NUM_SEGMENTS is no longer used. Segment data is now provided via
-// the uniform arrays uSegStart, uSegDur and associated per‑segment
-// arrays. The maximum number of supported segments is defined by
-// MAX_SEGMENTS at the top of this file.
-// TRANSITION controls how long the blend from the previous segment
-// into the new one lasts, starting exactly at the new segment's start.
-const float TRANSITION = 10.0;
-
 // Early exit threshold for epicycloid distance calculations
-// When minDist is below this value, we can skip remaining samples
 const float EARLY_EXIT_THRESHOLD = 0.001;
-
-// Segment start and duration are now provided via uniform arrays uSegStart and uSegDur. See above.
-
-const float MASTER_CIRCLES = 1.0;
-const float MASTER_WAVES = 1.0;
-const float MASTER_EPIS = 1.0;
 
 // Paramètres par défaut (supportent maintenant jusqu'à 8 instances)
 // Cercles fixes
@@ -79,7 +86,7 @@ const float W_SPEED[MAX_WAVE_LAYERS] = float[](0.20, 0.15, 0.10, 0.18, 0.12, 0.1
 const float W_THICK[MAX_WAVE_LAYERS] = float[](0.0010, 0.004, 0.006, 0.003, 0.005, 0.05, 0.0035, 0.0045);
 
 // Epicycloïdes
-const int MAX_EPI = MAX_EPI_PER_SEGMENT;
+const int MAX_EPI = 8;
 const float E_R[MAX_EPI] = float[](7.190, 1.85, 13.5, 20., 14.3, 9.1, 5.8, 7.5);
 const float E_r[MAX_EPI] = float[](-3.03, 0.506, -3.94, 7., -3.5, 5.5, -4.0, 6.5);
 const float E_SCALE[MAX_EPI] = float[](0.0075, 0.045, 0.031, 0.025, 0.040, 0.030, 0.038, 0.028);
@@ -106,46 +113,60 @@ float softBand(float d, float halfW) {
     return 1.0 - smoothstep(halfW, halfW + aa, d);
 }
 
+// ---------- PER-INSTANCE DATA ACCESSORS ----------
+// segmentType: 0 = previous, 1 = current
+int getInstanceIndex(int segmentType, int instanceIdx) {
+    int offset = segmentType * MAX_INSTANCES; // 0 for prev, 8 for current
+    return offset + clamp(instanceIdx, 0, MAX_INSTANCES - 1);
+}
+
+// Circle accessors
+vec3 getCircleColor(int segType, int instIdx) {
+    return uCircleColors[getInstanceIndex(segType, instIdx)];
+}
+float getCircleIntensity(int segType, int instIdx) {
+    return uCircleIntensities[getInstanceIndex(segType, instIdx)];
+}
+
+// Wave accessors
+vec3 getWaveColor(int segType, int instIdx) {
+    return uWaveColors[getInstanceIndex(segType, instIdx)];
+}
+float getWaveIntensity(int segType, int instIdx) {
+    return uWaveIntensities[getInstanceIndex(segType, instIdx)];
+}
+
+// Epicycloid accessors
+vec3 getEpiColor(int segType, int instIdx) {
+    return uEpiColors[getInstanceIndex(segType, instIdx)];
+}
+float getEpiIntensity(int segType, int instIdx) {
+    return uEpiIntensities[getInstanceIndex(segType, instIdx)];
+}
+
+// Expanding circle accessors
+vec3 getExpandColor(int segType, int instIdx) {
+    return uExpandColors[getInstanceIndex(segType, instIdx)];
+}
+float getExpandIntensity(int segType, int instIdx) {
+    return uExpandIntensities[getInstanceIndex(segType, instIdx)];
+}
+float getExpandStartRadius(int segType, int instIdx) {
+    return uExpandStartRadius[getInstanceIndex(segType, instIdx)];
+}
+
 // ---------- TIMELINE ----------
 struct SegData {
-    vec4 intensities; // x=circles, y=waves, z=epis, w=expandCircles
     vec4 shapeCounts; // x=nb circles, y=nb expandCircles, z=nb waves, w=nb epis
-    vec3 tintCirc;    // Teinte interpolée pour cercles
-    vec3 tintWave;    // Teinte interpolée pour vagues
-    vec3 tintEpi;     // Teinte interpolée pour epicycloïdes
     vec3 bgColor;     // Couleur de fond interpolée
     float progress;
-    int idx;
+    int idx;          // Current segment index
+    int prevIdx;      // Previous segment index (for interpolation)
+    float blendFactor; // Interpolation factor (0=prev, 1=current)
 };
 
-vec4 getIntensityForSeg(int i) {
-    // Directly index into the uniform array of intensities. The index
-    // must be less than uNumSegments; callers are responsible for
-    // bounds checking.
-    return uIntensitySeg[i];
-}
-
 vec4 getShapeCountsForSeg(int i) {
-    // Directly index into the uniform array of shape counts.
     return uShapeCountsSeg[i];
-}
-
-vec3 getTintCirc(int i) {
-    return uTintCircSeg[i];
-}
-
-vec3 getTintWave(int i) {
-    return uTintWaveSeg[i];
-}
-
-vec3 getTintEpi(int i) {
-    return uTintEpiSeg[i];
-}
-
-int getEpiSampleIndex(int segIndex, int epiIndex) {
-    int clampedSeg = clamp(segIndex, 0, MAX_SEGMENTS - 1);
-    int clampedEpi = clamp(epiIndex, 0, MAX_EPI_PER_SEGMENT - 1);
-    return clampedSeg * MAX_EPI_PER_SEGMENT + clampedEpi;
 }
 
 vec3 getBgColor(int i) {
@@ -154,34 +175,30 @@ vec3 getBgColor(int i) {
 
 SegData getSegment(float t) {
     SegData s;
-    s.intensities = vec4(0.0);
     s.shapeCounts = vec4(0.0);
-    s.tintCirc = vec3(1.0);
-    s.tintWave = vec3(1.0);
-    s.tintEpi = vec3(1.0);
-    s.bgColor = uBackgroundColor;
-    // Default to the last segment
+    s.bgColor = vec3(0.0);
+    s.progress = 0.0;
     s.idx = uNumSegments - 1;
+    s.prevIdx = 0;
+    s.blendFactor = 1.0;
 
     int cur = -1;
     float start = 0.0;
     float dur = 0.0;
-    // Utilise une borne fixe (MAX_SEGMENTS) pour respecter GLSL ES.
-    // On quitte la boucle dès que l’on dépasse uNumSegments ou que l’on a trouvé le segment.
+
+    // Find current segment
     for (int i = 0; i < MAX_SEGMENTS; i++) {
-        // Arrêter la recherche si on dépasse le nombre de segments valides.
-        if (i >= uNumSegments) {
-            break;
-        }
+        if (i >= uNumSegments) break;
         float ss = uSegStart[i];
         float dd = uSegDur[i];
         if (t >= ss && t < ss + dd) {
-            cur   = i;
+            cur = i;
             start = ss;
-            dur   = dd;
+            dur = dd;
             break;
         }
     }
+
     if (cur == -1) {
         cur = uNumSegments - 1;
         start = uSegStart[cur];
@@ -191,49 +208,35 @@ SegData getSegment(float t) {
     s.idx = cur;
     float tIn = t - start;
     float prog = (dur > 0.0) ? clamp(tIn / max(dur, 0.0001), 0.0, 1.0) : 0.0;
+    s.progress = prog;
 
-    vec4 intensityCurr = getIntensityForSeg(cur);
+    // Get current segment data
     vec4 shapeCountsCurr = getShapeCountsForSeg(cur);
-    vec3 tintCircCurr = getTintCirc(cur);
-    vec3 tintWaveCurr = getTintWave(cur);
-    vec3 tintEpiCurr = getTintEpi(cur);
     vec3 bgColorCurr = getBgColor(cur);
 
-    vec4 intensityPrev = intensityCurr;
-    vec4 shapeCountsPrev = shapeCountsCurr;
-    vec3 tintCircPrev = tintCircCurr;
-    vec3 tintWavePrev = tintWaveCurr;
-    vec3 tintEpiPrev = tintEpiCurr;
-    vec3 bgColorPrev = bgColorCurr;
+    // Determine if we're in transition from previous segment
+    int prevIndex = max(0, cur - 1);
+    s.prevIdx = prevIndex;
 
-    if (cur > 0) {
-        int prevIndex = cur - 1;
-        intensityPrev = getIntensityForSeg(prevIndex);
-        shapeCountsPrev = getShapeCountsForSeg(prevIndex);
-        tintCircPrev = getTintCirc(prevIndex);
-        tintWavePrev = getTintWave(prevIndex);
-        tintEpiPrev = getTintEpi(prevIndex);
-        bgColorPrev = getBgColor(prevIndex);
-    }
+    float transitionDur = uSegTransitionDur[cur];
 
-    if (cur > 0 && tIn < TRANSITION) {
-        float k = easeInOut(clamp(tIn / TRANSITION, 0.0, 1.0));
-        s.intensities = mix(intensityPrev, intensityCurr, k);
+    if (cur > 0 && tIn < transitionDur) {
+        // We're in transition period - interpolate
+        float k = easeInOut(clamp(tIn / max(transitionDur, 0.0001), 0.0, 1.0));
+        s.blendFactor = k;
+
+        vec4 shapeCountsPrev = getShapeCountsForSeg(prevIndex);
+        vec3 bgColorPrev = getBgColor(prevIndex);
+
         s.shapeCounts = mix(shapeCountsPrev, shapeCountsCurr, k);
-        s.tintCirc = mix(tintCircPrev, tintCircCurr, k);
-        s.tintWave = mix(tintWavePrev, tintWaveCurr, k);
-        s.tintEpi = mix(tintEpiPrev, tintEpiCurr, k);
         s.bgColor = mix(bgColorPrev, bgColorCurr, k);
     } else {
-        s.intensities = intensityCurr;
+        // No transition - use current values directly
+        s.blendFactor = 1.0;
         s.shapeCounts = shapeCountsCurr;
-        s.tintCirc = tintCircCurr;
-        s.tintWave = tintWaveCurr;
-        s.tintEpi = tintEpiCurr;
         s.bgColor = bgColorCurr;
     }
 
-    s.progress = prog;
     return s;
 }
 
@@ -245,8 +248,7 @@ float circleLine(vec2 p, float r, float th, float g, float sharp) {
     return clamp(l + glow, 0.0, 1.0);
 }
 
-vec3 renderCircles(vec2 p, float t, float inten, vec3 tint, float numCirclesFloat) {
-    if (inten <= 0.0) return vec3(0.0);
+vec3 renderCircles(vec2 p, float t, float numCirclesFloat, float blendFactor) {
     int maxCircles = int(ceil(numCirclesFloat));
     maxCircles = clamp(maxCircles, 0, MAX_CIRCLES);
     if (maxCircles == 0) return vec3(0.0);
@@ -256,19 +258,45 @@ vec3 renderCircles(vec2 p, float t, float inten, vec3 tint, float numCirclesFloa
 
     for (int i = 0; i < MAX_CIRCLES; i++) {
         if (i >= maxCircles) break;
-        // Calcul du fade pour cette forme spécifique
         float shapeAlpha = clamp(numCirclesFloat - float(i), 0.0, 1.0);
 
-        float r = C_R[i] * (1.0 + wob * sin(t * (0.5 + float(i) * 0.05)));
-        float m = circleLine(p, r, C_THICK[i], C_GLOW[i], C_GLOW_SHARP);
-        vec3 baseColor = (i == 0) ? uCircleColor0 : (i == 1) ? uCircleColor1 : uCircleColor2;
-        col += m * (baseColor * tint) * shapeAlpha;
+        vec3 colorCurr = getCircleColor(1, i);
+        float intensityCurr = getCircleIntensity(1, i);
+
+        vec3 finalColor = colorCurr;
+        float finalIntensity = intensityCurr;
+
+        if (blendFactor < 1.0) {
+            vec3 colorPrev = getCircleColor(0, i);
+            float intensityPrev = getCircleIntensity(0, i);
+            finalColor = mix(colorPrev, colorCurr, blendFactor);
+            finalIntensity = mix(intensityPrev, intensityCurr, blendFactor);
+        }
+
+        if (finalIntensity <= 0.0) continue;
+
+        // Use uniforms for geometric parameters (blend between prev and current segment)
+        int idxPrev = i;
+        int idxCurr = 8 + i;
+        float radiusPrev = uCircleRadius[idxPrev];
+        float radiusCurr = uCircleRadius[idxCurr];
+        float thicknessPrev = uCircleThickness[idxPrev];
+        float thicknessCurr = uCircleThickness[idxCurr];
+        float glowPrev = uCircleGlow[idxPrev];
+        float glowCurr = uCircleGlow[idxCurr];
+
+        float finalRadius = mix(radiusPrev, radiusCurr, blendFactor);
+        float finalThickness = mix(thicknessPrev, thicknessCurr, blendFactor);
+        float finalGlow = mix(glowPrev, glowCurr, blendFactor);
+
+        float r = finalRadius * (1.0 + wob * sin(t * (0.5 + float(i) * 0.05)));
+        float m = circleLine(p, r, finalThickness, finalGlow, C_GLOW_SHARP);
+        col += m * finalColor * finalIntensity * shapeAlpha;
     }
-    return col * inten * MASTER_CIRCLES;
+    return col;
 }
 
-vec3 renderExpandingCircles(vec2 p, float t, float inten, float numExpandFloat) {
-    if (inten <= 0.0) return vec3(0.0);
+vec3 renderExpandingCircles(vec2 p, float t, float numExpandFloat, float blendFactor) {
     int maxExpand = int(ceil(numExpandFloat));
     maxExpand = clamp(maxExpand, 0, MAX_EXPAND_CIRCLES);
     if (maxExpand == 0) return vec3(0.0);
@@ -276,31 +304,65 @@ vec3 renderExpandingCircles(vec2 p, float t, float inten, float numExpandFloat) 
     vec3 col = vec3(0.0);
     for (int i = 0; i < MAX_EXPAND_CIRCLES; i++) {
         if (i >= maxExpand) break;
-        // Calcul du fade pour cette forme spécifique
         float shapeAlpha = clamp(numExpandFloat - float(i), 0.0, 1.0);
 
-        float off = float(i) * (EXPAND_PERIOD / max(1.0, numExpandFloat));
-        float tt = mod(t + off, EXPAND_PERIOD);
+        vec3 colorCurr = getExpandColor(1, i);
+        float intensityCurr = getExpandIntensity(1, i);
+        float startRadiusCurr = getExpandStartRadius(1, i);
+
+        vec3 finalColor = colorCurr;
+        float finalIntensity = intensityCurr;
+        float finalStartRadius = startRadiusCurr;
+
+        if (blendFactor < 1.0) {
+            vec3 colorPrev = getExpandColor(0, i);
+            float intensityPrev = getExpandIntensity(0, i);
+            float startRadiusPrev = getExpandStartRadius(0, i);
+            finalColor = mix(colorPrev, colorCurr, blendFactor);
+            finalIntensity = mix(intensityPrev, intensityCurr, blendFactor);
+            finalStartRadius = mix(startRadiusPrev, startRadiusCurr, blendFactor);
+        }
+
+        if (finalIntensity <= 0.0) continue;
+
+        // Use uniforms for geometric parameters (blend between prev and current segment)
+        int idxPrev = i;
+        int idxCurr = 8 + i;
+        float periodPrev = uExpandPeriod[idxPrev];
+        float periodCurr = uExpandPeriod[idxCurr];
+        float thicknessPrev = uExpandThickness[idxPrev];
+        float thicknessCurr = uExpandThickness[idxCurr];
+        float glowPrev = uExpandGlow[idxPrev];
+        float glowCurr = uExpandGlow[idxCurr];
+        float maxRadiusPrev = uExpandMaxRadius[idxPrev];
+        float maxRadiusCurr = uExpandMaxRadius[idxCurr];
+
+        float finalPeriod = mix(periodPrev, periodCurr, blendFactor);
+        float finalThickness = mix(thicknessPrev, thicknessCurr, blendFactor);
+        float finalGlow = mix(glowPrev, glowCurr, blendFactor);
+        float finalMaxRadius = mix(maxRadiusPrev, maxRadiusCurr, blendFactor);
+
+        float off = float(i) * (finalPeriod / max(1.0, numExpandFloat));
+        float tt = mod(t + off, finalPeriod);
         if (tt < EXPAND_DURATION) {
             float prog = tt / EXPAND_DURATION;
-            float radius = prog * EXPAND_MAX_RADIUS;
+            float radius = finalStartRadius + prog * (finalMaxRadius - finalStartRadius);
             float alpha = (1.0 - prog);
             alpha *= alpha * shapeAlpha;
             float d = abs(length(p) - radius);
-            float l = softBand(d, EXPAND_THICKNESS);
-            float g = EXPAND_GLOW * exp(-d * 50.0);
-            col += uExpandColor * (l + g) * alpha;
+            float l = softBand(d, finalThickness);
+            float g = finalGlow * exp(-d * 50.0);
+            col += finalColor * (l + g) * alpha * finalIntensity;
         }
     }
-    return col * inten;
+    return col;
 }
 
 float waveY(float x, float A, float F, float ph) {
     return A * sin(F * x + ph) + 0.45 * A * sin(0.5 * F * x - 1.7 * ph) + 0.2 * A * sin(1.8 * F * x + 2.3 * ph);
 }
 
-vec3 renderWaves(vec2 p, float t, float inten, vec3 tint, float numWavesFloat) {
-    if (inten <= 0.0) return vec3(0.0);
+vec3 renderWaves(vec2 p, float t, float numWavesFloat, float blendFactor) {
     int maxWaves = int(ceil(numWavesFloat));
     maxWaves = clamp(maxWaves, 0, MAX_WAVE_LAYERS);
     if (maxWaves == 0) return vec3(0.0);
@@ -308,18 +370,51 @@ vec3 renderWaves(vec2 p, float t, float inten, vec3 tint, float numWavesFloat) {
     vec3 col = vec3(0.0);
     for (int i = 0; i < MAX_WAVE_LAYERS; i++) {
         if (i >= maxWaves) break;
-        // Calcul du fade pour cette forme spécifique
         float shapeAlpha = clamp(numWavesFloat - float(i), 0.0, 1.0);
 
-        float ph = t * W_SPEED[i] + float(i) * 0.8;
-        float y = waveY(p.x + 0.5 * float(i), W_AMP[i], W_FREQ[i], ph);
+        vec3 colorCurr = getWaveColor(1, i);
+        float intensityCurr = getWaveIntensity(1, i);
+
+        vec3 finalColor = colorCurr;
+        float finalIntensity = intensityCurr;
+
+        if (blendFactor < 1.0) {
+            vec3 colorPrev = getWaveColor(0, i);
+            float intensityPrev = getWaveIntensity(0, i);
+            finalColor = mix(colorPrev, colorCurr, blendFactor);
+            finalIntensity = mix(intensityPrev, intensityCurr, blendFactor);
+        }
+
+        if (finalIntensity <= 0.0) continue;
+
+        // Use uniforms for geometric parameters (blend between prev and current segment)
+        int idxPrev = i;
+        int idxCurr = 8 + i;
+        float ampPrev = uWaveAmplitude[idxPrev];
+        float ampCurr = uWaveAmplitude[idxCurr];
+        float freqPrev = uWaveFrequency[idxPrev];
+        float freqCurr = uWaveFrequency[idxCurr];
+        float speedPrev = uWaveSpeed[idxPrev];
+        float speedCurr = uWaveSpeed[idxCurr];
+        float thicknessPrev = uWaveThickness[idxPrev];
+        float thicknessCurr = uWaveThickness[idxCurr];
+        float glowPrev = uWaveGlow[idxPrev];
+        float glowCurr = uWaveGlow[idxCurr];
+
+        float finalAmp = mix(ampPrev, ampCurr, blendFactor);
+        float finalFreq = mix(freqPrev, freqCurr, blendFactor);
+        float finalSpeed = mix(speedPrev, speedCurr, blendFactor);
+        float finalThickness = mix(thicknessPrev, thicknessCurr, blendFactor);
+        float finalGlow = mix(glowPrev, glowCurr, blendFactor);
+
+        float ph = t * finalSpeed + float(i) * 0.8;
+        float y = waveY(p.x + 0.5 * float(i), finalAmp, finalFreq, ph);
         float d = abs(p.y - y);
-        float band = softBand(d, W_THICK[i]);
-        float glow = 5.2 * exp(-d * 50.0);
-        vec3 base = (i == 0) ? uWaveColor0 : (i == 1) ? uWaveColor1 : uWaveColor2;
-        col += (base * tint) * (0.8 * band + 0.35 * glow) * shapeAlpha;
+        float band = softBand(d, finalThickness);
+        float glow = finalGlow * exp(-d * 50.0);
+        col += finalColor * (0.8 * band + 0.35 * glow) * finalIntensity * shapeAlpha;
     }
-    return col * inten * MASTER_WAVES;
+    return col;
 }
 
 vec2 epicycloid(float tt, float R, float r) {
@@ -330,8 +425,7 @@ vec2 epicycloid(float tt, float R, float r) {
     );
 }
 
-vec3 renderEpicycloids(vec2 p, float t, float inten, vec3 tint, float numEpiFloat, int segmentIndex) {
-    if (inten <= 0.0) return vec3(0.0);
+vec3 renderEpicycloids(vec2 p, float t, float numEpiFloat, float blendFactor) {
     int maxEpi = int(ceil(numEpiFloat));
     maxEpi = clamp(maxEpi, 0, MAX_EPI);
     if (maxEpi == 0) return vec3(0.0);
@@ -340,35 +434,67 @@ vec3 renderEpicycloids(vec2 p, float t, float inten, vec3 tint, float numEpiFloa
     float epiFactor = clamp(uEpiSampleFactor, 0.05, 2.0);
     for (int i = 0; i < MAX_EPI; i++) {
         if (i >= maxEpi) break;
-        // Calcul du fade pour cette forme spécifique
         float shapeAlpha = clamp(numEpiFloat - float(i), 0.0, 1.0);
 
-        int offset = getEpiSampleIndex(segmentIndex, i);
-        float uniformSamples = uEpiSamples[offset];
-        if (uniformSamples <= 0.0) {
-            uniformSamples = float(E_SAMPLES[i]);
+        vec3 colorCurr = getEpiColor(1, i);
+        float intensityCurr = getEpiIntensity(1, i);
+
+        vec3 finalColor = colorCurr;
+        float finalIntensity = intensityCurr;
+
+        if (blendFactor < 1.0) {
+            vec3 colorPrev = getEpiColor(0, i);
+            float intensityPrev = getEpiIntensity(0, i);
+            finalColor = mix(colorPrev, colorCurr, blendFactor);
+            finalIntensity = mix(intensityPrev, intensityCurr, blendFactor);
         }
-        int baseSamples = int(max(1.0, uniformSamples));
+
+        if (finalIntensity <= 0.0) continue;
+
+        // Use uniforms for geometric parameters (blend between prev and current segment)
+        int idxPrev = i;
+        int idxCurr = 8 + i;
+        float RPrev = uEpiR[idxPrev];
+        float RCurr = uEpiR[idxCurr];
+        float rPrev = uEpir[idxPrev];
+        float rCurr = uEpir[idxCurr];
+        float scalePrev = uEpiScale[idxPrev];
+        float scaleCurr = uEpiScale[idxCurr];
+        float thicknessPrev = uEpiThickness[idxPrev];
+        float thicknessCurr = uEpiThickness[idxCurr];
+        float speedPrev = uEpiSpeed[idxPrev];
+        float speedCurr = uEpiSpeed[idxCurr];
+        float glowPrev = uEpiGlow[idxPrev];
+        float glowCurr = uEpiGlow[idxCurr];
+        int samplesPrev = uEpiSamples[idxPrev];
+        int samplesCurr = uEpiSamples[idxCurr];
+
+        float finalR = mix(RPrev, RCurr, blendFactor);
+        float finalr = mix(rPrev, rCurr, blendFactor);
+        float finalScale = mix(scalePrev, scaleCurr, blendFactor);
+        float finalThickness = mix(thicknessPrev, thicknessCurr, blendFactor);
+        float finalSpeed = mix(speedPrev, speedCurr, blendFactor);
+        float finalGlow = mix(glowPrev, glowCurr, blendFactor);
+        int baseSamples = int(mix(float(samplesPrev), float(samplesCurr), blendFactor));
+
         int scaledSamples = max(1, int(float(baseSamples) * epiFactor));
         int capSamples = max(1, int(float(MAX_EPI_SAMPLES) * epiFactor));
         int SMPL = min(scaledSamples, capSamples);
         float minD = 1e9;
         for (int j = 0; j < MAX_EPI_SAMPLES; j++) {
             if (j >= SMPL) break;
-            float a = TAU * float(j) / float(SMPL) * 8.0 + t * E_SPEED[i];
-            vec2 q = epicycloid(a, E_R[i], E_r[i]) * E_SCALE[i];
+            float a = TAU * float(j) / float(SMPL) * 8.0 + t * finalSpeed;
+            vec2 q = epicycloid(a, finalR, finalr) * finalScale;
             minD = min(minD, length(p - q));
-            // Early exit: if we're already very close, no need to check more samples
             if (minD < EARLY_EXIT_THRESHOLD) break;
         }
-        float line = softBand(minD, E_THICK[i]);
-        float glow = E_GLOW[i] * exp(-minD * 100.0);
+        float line = softBand(minD, finalThickness);
+        float glow = finalGlow * exp(-minD * 100.0);
         float vGlow = 0.5 * exp(-abs(p.y) * 10.0);
         line *= mix(1.0, vGlow, 0.3);
-        vec3 base = (i == 0) ? uEpiColor0 : uEpiColor1;
-        outC += (base * tint) * (line + glow) * shapeAlpha;
+        outC += finalColor * (line + glow) * finalIntensity * shapeAlpha;
     }
-    return outC * inten * MASTER_EPIS;
+    return outC;
 }
 
 // ---------- MAIN ----------
@@ -377,10 +503,10 @@ void main() {
     SegData seg = getSegment(iTime);
     vec3 col = seg.bgColor;
 
-    col += renderCircles(p, iTime, seg.intensities.x, seg.tintCirc, seg.shapeCounts.x);
-    col += renderWaves(p, iTime, seg.intensities.y, seg.tintWave, seg.shapeCounts.z);
-    col += renderEpicycloids(p, iTime, seg.intensities.z, seg.tintEpi, seg.shapeCounts.w, seg.idx);
-    col += renderExpandingCircles(p, iTime, seg.intensities.w, seg.shapeCounts.y);
+    col += renderCircles(p, iTime, seg.shapeCounts.x, seg.blendFactor);
+    col += renderWaves(p, iTime, seg.shapeCounts.z, seg.blendFactor);
+    col += renderEpicycloids(p, iTime, seg.shapeCounts.w, seg.blendFactor);
+    col += renderExpandingCircles(p, iTime, seg.shapeCounts.y, seg.blendFactor);
 
     gl_FragColor = vec4(col, 1.0);
 }

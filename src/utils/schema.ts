@@ -12,22 +12,6 @@ import type { ProjectConfig } from '../types/config';
 // Primitive schemas
 const uniformVec3Schema = z.tuple([z.number(), z.number(), z.number()]);
 
-const shapeCountsSchema = z.object({
-  // Les clés sont optionnelles pour permettre des overrides partiels.
-  circles: z.number().optional(),
-  waves: z.number().optional(),
-  epicycloids: z.number().optional(),
-  expandingCircles: z.number().optional(),
-});
-
-const tintsSchema = z.object({
-  bg: uniformVec3Schema.optional(),
-  circles: uniformVec3Schema.optional(),
-  waves: uniformVec3Schema.optional(),
-  epicycloids: uniformVec3Schema.optional(),
-  expandingCircles: uniformVec3Schema.optional(),
-});
-
 // Shape instance schemas (new system)
 const circleInstanceSchema = z.object({
   id: z.string(),
@@ -36,6 +20,7 @@ const circleInstanceSchema = z.object({
   radius: z.number(),
   thickness: z.number(),
   glow: z.number(),
+  intensity: z.number(),
   color: uniformVec3Schema,
 });
 
@@ -43,11 +28,14 @@ const expandingCircleInstanceSchema = z.object({
   id: z.string(),
   type: z.literal('expandingCircle'),
   enabled: z.boolean(),
+  startRadius: z.number(),
   period: z.number(),
   thickness: z.number(),
   glow: z.number(),
   maxRadius: z.number(),
   startTime: z.number(),
+  intensity: z.number(),
+  color: uniformVec3Schema,
 });
 
 const waveInstanceSchema = z.object({
@@ -58,6 +46,9 @@ const waveInstanceSchema = z.object({
   frequency: z.number(),
   speed: z.number(),
   thickness: z.number(),
+  glow: z.number(),
+  intensity: z.number(),
+  color: uniformVec3Schema,
 });
 
 const epicycloidInstanceSchema = z.object({
@@ -71,6 +62,8 @@ const epicycloidInstanceSchema = z.object({
   speed: z.number(),
   glow: z.number(),
   samples: z.number().int().min(1),
+  intensity: z.number(),
+  color: uniformVec3Schema,
 });
 
 const shapeInstanceCollectionSchema = z.object({
@@ -80,38 +73,41 @@ const shapeInstanceCollectionSchema = z.object({
   epicycloids: z.array(epicycloidInstanceSchema),
 });
 
-// UniformSet schema. Nous n'annotons plus explicitement le type afin
-// de garder les méthodes Zod (comme .partial()) disponibles. Les
-// champs shapeCounts et tints sont eux-mêmes optionnels.
+// UniformSet schema (v2) - cleaned up to only include non-deprecated fields.
+// Per-instance intensity and colors are now in shapeInstances.
 const uniformSetSchema = z.object({
   backgroundColor: uniformVec3Schema,
-  circlesIntensity: z.number(),
-  wavesIntensity: z.number(),
-  epicycloidsIntensity: z.number(),
-  expandingCirclesIntensity: z.number(),
-  epicycloidsSampleFactor: z.number().optional(),
-  epicycloidsSamples: z.array(z.number().int().min(1)).optional(),
-  shapeCounts: shapeCountsSchema.optional(),
-  tints: tintsSchema.optional(),
+  epicycloidsSampleFactor: z.number(),
 });
 
-// Segment schema. Note that startSec and endSec are numbers but
-// recalculated when loaded into state.
+// Segment schema (v2). uniformsOverride removed - now uses shapeInstances only.
 const segmentConfigSchema = z.object({
   id: z.string(),
   label: z.string(),
   durationSec: z.number().nonnegative(),
   startSec: z.number().nonnegative(),
   endSec: z.number().nonnegative(),
-  uniformsOverride: uniformSetSchema.partial().optional(),
-  shapeInstances: shapeInstanceCollectionSchema.optional(),
+  transitionDuration: z.number().nonnegative(),
+  backgroundColor: uniformVec3Schema,
+  tint: uniformVec3Schema.optional(),
+  shapeInstances: shapeInstanceCollectionSchema,
 });
 
-// Project schema. The list of segments is validated but further
+// Shape limits schema (max instances per type)
+export const shapeLimitsSchema = z.object({
+  circles: z.number().int().nonnegative(),
+  waves: z.number().int().nonnegative(),
+  epicycloids: z.number().int().nonnegative(),
+  expandingCircles: z.number().int().nonnegative(),
+});
+
+// Project schema (v2). The list of segments is validated but further
 // sanitisation (start/end recalculation) happens in the hook.
 export const projectConfigSchema = z.object({
+  version: z.number().int().optional(), // Optional for backward compatibility
   projectName: z.string(),
   fps: z.number().positive(),
+  maxShapeLimits: shapeLimitsSchema,
   uniforms: uniformSetSchema,
   segments: z.array(segmentConfigSchema),
 });

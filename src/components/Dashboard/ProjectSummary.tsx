@@ -26,31 +26,27 @@ export function ProjectSummary({
   };
 
   return (
-    <div className="bg-dark/90 backdrop-blur-sm rounded-lg border border-dark-border p-8 max-w-md w-full">
+    <div className="bg-dark/90 backdrop-blur-sm rounded-lg border border-dark-border p-4 max-w-sm w-full">
       {/* Header */}
-      <div className="text-center mb-6">
-        <div className="text-4xl mb-3">🎨</div>
-        <h1 className="text-2xl font-bold text-white mb-2">GLSL Shader Project</h1>
-        <h2 className="text-lg text-gray-300">{projectName}</h2>
+      <div className="mb-3">
+        <h1 className="text-lg font-bold text-white">GLSL Shader Project</h1>
+        <h2 className="text-sm text-gray-300">{projectName}</h2>
       </div>
 
-      {/* Stats grid */}
-      <div className="grid grid-cols-2 gap-4 mb-6">
-        <div className="bg-dark-lighter rounded-lg p-4 border border-dark-border">
-          <div className="text-xs text-gray-400 mb-1">FPS</div>
-          <div className="text-2xl font-bold text-white">{fps}</div>
+      {/* Compact Stats - Single line */}
+      <div className="flex items-center gap-4 text-sm">
+        <div className="flex items-center gap-1">
+          <span className="text-gray-400">FPS:</span>
+          <span className="font-semibold text-white">{fps}</span>
         </div>
-
-        <div className="bg-dark-lighter rounded-lg p-4 border border-dark-border">
-          <div className="text-xs text-gray-400 mb-1">Segments</div>
-          <div className="text-2xl font-bold text-white">{segmentCount}</div>
+        <div className="flex items-center gap-1">
+          <span className="text-gray-400">Segments:</span>
+          <span className="font-semibold text-white">{segmentCount}</span>
         </div>
-      </div>
-
-      {/* Duration */}
-      <div className="bg-dark-lighter rounded-lg p-4 border border-dark-border text-center">
-        <div className="text-xs text-gray-400 mb-1">Total Duration</div>
-        <div className="text-xl font-bold text-white">{formatDuration(totalDuration)}</div>
+        <div className="flex items-center gap-1">
+          <span className="text-gray-400">Duration:</span>
+          <span className="font-semibold text-white">{formatDuration(totalDuration)}</span>
+        </div>
       </div>
     </div>
   );

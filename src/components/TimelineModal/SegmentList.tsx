@@ -67,9 +67,10 @@ export function SegmentList({
       {/* Add button */}
       <button
         onClick={onAddSegment}
-        className="mt-4 w-full px-4 py-2 bg-primary text-white rounded-lg font-medium hover:bg-primary/90 transition-colors"
+        className="mt-4 w-full px-4 py-2 bg-primary text-white rounded-lg font-bold text-lg hover:bg-primary/90 transition-colors"
+        title="Add segment"
       >
-        + Add Segment
+        +
       </button>
     </div>
   );

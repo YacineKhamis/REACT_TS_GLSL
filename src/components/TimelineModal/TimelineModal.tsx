@@ -1,12 +1,17 @@
 /**
  * Main Timeline modal component using Radix Dialog.
- * Displays segment management and shape instance editing in a large overlay.
+ * Displays segment management, live preview, and shape instance editing with playback controls.
  */
 
 import * as Dialog from '@radix-ui/react-dialog';
-import type { SegmentConfig } from '../../types/config';
+import type { SegmentConfig, ShapeLimits, UniformVec3 } from '../../types/config';
+import type { ShapeInstanceCollection } from '../../types/shapeInstances';
+import { generateInstanceId } from '../../types/shapeInstances';
+import { getCircleDefaults, getExpandingCircleDefaults, getWaveDefaults, getEpicycloidDefaults } from '../../constants/shapeDefaults';
 import { SegmentList } from './SegmentList';
-import { ShapeTabs } from './ShapeTabs';
+import { ShapeInstanceEditor } from './ShapeInstanceEditor';
+import { TimelinePreview } from './TimelinePreview';
+import { TimelinePlaybackBar } from './TimelinePlaybackBar';
 
 interface TimelineModalProps {
   isOpen: boolean;
@@ -19,6 +24,18 @@ interface TimelineModalProps {
   onDeleteSegment: (index: number) => void;
   onUpdateSegmentLabel: (index: number, label: string) => void;
   onUpdateSegmentDuration: (index: number, duration: number) => void;
+  maxShapeLimits: ShapeLimits;
+  onUpdateSegmentBackground: (index: number, color: UniformVec3) => void;
+  onUpdateSegmentTint: (index: number, tint: UniformVec3 | undefined) => void;
+  onUpdateSegmentTransition: (index: number, duration: number) => void;
+  onUpdateSegmentShapeInstances: (index: number, instances: ShapeInstanceCollection) => void;
+  // Playback props
+  currentTime: number;
+  isPlaying: boolean;
+  totalDuration: number;
+  onPlayPause: () => void;
+  onScrub: (time: number) => void;
+  shaderUniforms: Record<string, { value: unknown }>;
 }
 
 export function TimelineModal({
@@ -32,7 +49,112 @@ export function TimelineModal({
   onDeleteSegment,
   onUpdateSegmentLabel,
   onUpdateSegmentDuration,
+  maxShapeLimits,
+  onUpdateSegmentBackground,
+  onUpdateSegmentTint,
+  onUpdateSegmentTransition,
+  onUpdateSegmentShapeInstances,
+  currentTime,
+  isPlaying,
+  totalDuration,
+  onPlayPause,
+  onScrub,
+  shaderUniforms,
 }: TimelineModalProps) {
+  const selectedSegment = segments[selectedSegmentIndex];
+
+  // Calculate shape counts from shapeInstances
+  const shapeCounts = selectedSegment?.shapeInstances
+    ? {
+        circles: selectedSegment.shapeInstances.circles.length,
+        expandingCircles: selectedSegment.shapeInstances.expandingCircles.length,
+        waves: selectedSegment.shapeInstances.waves.length,
+        epicycloids: selectedSegment.shapeInstances.epicycloids.length,
+      }
+    : { circles: 0, expandingCircles: 0, waves: 0, epicycloids: 0 };
+
+  // Auto-jump to segment start when segment is selected
+  const handleSelectSegment = (index: number) => {
+    onSelectSegment(index);
+    const segment = segments[index];
+    if (segment) {
+      onScrub(segment.startSec);
+    }
+  };
+
+  // Handle shape count changes by adjusting shapeInstances
+  const handleShapeCountsChange = (newCounts: typeof shapeCounts) => {
+    if (!selectedSegment?.shapeInstances) return;
+
+    const instances = { ...selectedSegment.shapeInstances };
+
+    // Helper to adjust array length
+    const adjustArray = <T extends { id: string; type: string; enabled: boolean }>(
+      arr: T[],
+      targetLength: number,
+      createDefault: (index: number) => T
+    ): T[] => {
+      if (arr.length === targetLength) return arr;
+      if (arr.length > targetLength) {
+        // Remove excess instances from the end
+        return arr.slice(0, targetLength);
+      }
+      // Add new instances
+      const newInstances = [...arr];
+      for (let i = arr.length; i < targetLength; i++) {
+        newInstances.push(createDefault(i));
+      }
+      return newInstances;
+    };
+
+    // Adjust each shape type
+    instances.circles = adjustArray(
+      instances.circles,
+      newCounts.circles,
+      (i) => ({
+        id: generateInstanceId(),
+        type: 'circle',
+        enabled: false, // Disabled by default - user must enable manually in Shapes tab
+        ...getCircleDefaults(i),
+      })
+    );
+
+    instances.expandingCircles = adjustArray(
+      instances.expandingCircles,
+      newCounts.expandingCircles,
+      () => ({
+        id: generateInstanceId(),
+        type: 'expandingCircle',
+        enabled: false, // Disabled by default - user must enable manually in Shapes tab
+        ...getExpandingCircleDefaults(),
+      })
+    );
+
+    instances.waves = adjustArray(
+      instances.waves,
+      newCounts.waves,
+      (i) => ({
+        id: generateInstanceId(),
+        type: 'wave',
+        enabled: false, // Disabled by default - user must enable manually in Shapes tab
+        ...getWaveDefaults(i),
+      })
+    );
+
+    instances.epicycloids = adjustArray(
+      instances.epicycloids,
+      newCounts.epicycloids,
+      (i) => ({
+        id: generateInstanceId(),
+        type: 'epicycloid',
+        enabled: false, // Disabled by default - user must enable manually in Shapes tab
+        ...getEpicycloidDefaults(i),
+      })
+    );
+
+    onUpdateSegmentShapeInstances(selectedSegmentIndex, instances);
+  };
+
   return (
     <Dialog.Root open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <Dialog.Portal>
@@ -79,14 +201,14 @@ export function TimelineModal({
             </Dialog.Close>
           </div>
 
-          {/* Main content grid */}
-          <div className="flex-1 grid grid-cols-[300px_1fr] gap-6 p-6 overflow-hidden">
+          {/* Main content grid - 3 columns */}
+          <div className="flex-1 grid grid-cols-[180px_1fr_400px] gap-4 p-4 overflow-hidden">
             {/* Left: Segment list */}
             <div className="overflow-hidden">
               <SegmentList
                 segments={segments}
                 selectedSegmentIndex={selectedSegmentIndex}
-                onSelectSegment={onSelectSegment}
+                onSelectSegment={handleSelectSegment}
                 onAddSegment={onAddSegment}
                 onDuplicateSegment={onDuplicateSegment}
                 onDeleteSegment={onDeleteSegment}
@@ -95,11 +217,63 @@ export function TimelineModal({
               />
             </div>
 
-            {/* Right: Shape tabs (placeholder for Phase 3) */}
+            {/* Center: Live Preview */}
             <div className="overflow-hidden">
-              <ShapeTabs />
+              <TimelinePreview
+                currentTime={currentTime}
+                isPlaying={isPlaying}
+                totalDuration={totalDuration}
+                uniforms={shaderUniforms}
+                onTimeUpdate={onScrub}
+                segments={segments}
+                selectedSegmentIndex={selectedSegmentIndex}
+              />
+            </div>
+
+            {/* Right: Shape Instance Editor */}
+            <div className="overflow-hidden">
+              {selectedSegment && selectedSegment.shapeInstances ? (
+                <ShapeInstanceEditor
+                  durationSec={selectedSegment.durationSec}
+                  startSec={selectedSegment.startSec}
+                  endSec={selectedSegment.endSec}
+                  backgroundColor={selectedSegment.backgroundColor}
+                  onBackgroundColorChange={(color) =>
+                    onUpdateSegmentBackground(selectedSegmentIndex, color)
+                  }
+                  tint={selectedSegment.tint}
+                  onTintChange={(tint) => onUpdateSegmentTint(selectedSegmentIndex, tint)}
+                  shapeCounts={shapeCounts}
+                  onShapeCountsChange={handleShapeCountsChange}
+                  transitionDuration={selectedSegment.transitionDuration}
+                  onTransitionDurationChange={(duration) =>
+                    onUpdateSegmentTransition(selectedSegmentIndex, duration)
+                  }
+                  shapeInstances={selectedSegment.shapeInstances}
+                  onShapeInstancesChange={(instances) =>
+                    onUpdateSegmentShapeInstances(selectedSegmentIndex, instances)
+                  }
+                  maxShapeLimits={maxShapeLimits}
+                />
+              ) : (
+                <div className="flex items-center justify-center h-full">
+                  <p className="text-sm text-gray-500 italic">
+                    Select a segment to edit its parameters
+                  </p>
+                </div>
+              )}
             </div>
           </div>
+
+          {/* Footer: Playback Bar */}
+          <TimelinePlaybackBar
+            currentTime={currentTime}
+            isPlaying={isPlaying}
+            onPlayPause={onPlayPause}
+            onScrub={onScrub}
+            totalDuration={totalDuration}
+            segments={segments.map(seg => ({ start: seg.startSec, duration: seg.durationSec }))}
+          />
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>

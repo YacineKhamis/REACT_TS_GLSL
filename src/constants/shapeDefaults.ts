@@ -18,6 +18,7 @@ export const CIRCLE_DEFAULTS = {
 
 // Expanding Circle defaults (from EXPAND_* constants)
 export const EXPANDING_CIRCLE_DEFAULTS = {
+  startRadius: 0, // NEW: Starting radius (circles expand from this radius)
   period: 41.74,
   thickness: 0.0001,
   glow: 3.5,
@@ -25,12 +26,13 @@ export const EXPANDING_CIRCLE_DEFAULTS = {
   startTime: 0, // Offset within segment
 };
 
-// Wave defaults (from W_AMP, W_FREQ, W_SPEED, W_THICK arrays)
+// Wave defaults (from W_AMP, W_FREQ, W_SPEED, W_THICK, W_GLOW arrays)
 export const WAVE_DEFAULTS = {
   amplitude: [0.3, 0.1, 0.15, 0.35, 0.25, 0.78, 0.32, 0.38],
   frequency: [0.3, 0.56, 0.62, 0.5, 0.65, 0.75, 0.8, 0.55],
   speed: [0.2, 0.15, 0.1, 0.18, 0.12, 0.16, 0.22, 0.14],
   thickness: [0.001, 0.004, 0.006, 0.003, 0.005, 0.05, 0.0035, 0.0045],
+  glow: [1.0, 1.5, 0.8, 1.2, 0.9, 1.3, 1.1, 0.85],
 };
 
 // Epicycloid defaults (from E_R, E_r, E_SCALE, E_THICK, E_SPEED, E_GLOW arrays)
@@ -53,6 +55,7 @@ export function getCircleDefaults(index: number) {
     radius: CIRCLE_DEFAULTS.radius[i],
     thickness: CIRCLE_DEFAULTS.thickness[i],
     glow: CIRCLE_DEFAULTS.glow[i],
+    intensity: 0.5, // NEW: Default intensity (0-1)
     color: [1, 1, 1] as [number, number, number], // White by default
   };
 }
@@ -62,11 +65,14 @@ export function getCircleDefaults(index: number) {
  */
 export function getExpandingCircleDefaults() {
   return {
+    startRadius: EXPANDING_CIRCLE_DEFAULTS.startRadius,
     period: EXPANDING_CIRCLE_DEFAULTS.period,
     thickness: EXPANDING_CIRCLE_DEFAULTS.thickness,
     glow: EXPANDING_CIRCLE_DEFAULTS.glow,
     maxRadius: EXPANDING_CIRCLE_DEFAULTS.maxRadius,
     startTime: EXPANDING_CIRCLE_DEFAULTS.startTime,
+    intensity: 0.5, // NEW: Default intensity (0-1)
+    color: [1, 0.647, 0] as [number, number, number], // Orange by default
   };
 }
 
@@ -80,6 +86,9 @@ export function getWaveDefaults(index: number) {
     frequency: WAVE_DEFAULTS.frequency[i],
     speed: WAVE_DEFAULTS.speed[i],
     thickness: WAVE_DEFAULTS.thickness[i],
+    glow: WAVE_DEFAULTS.glow[i],
+    intensity: 0.5, // NEW: Default intensity (0-1)
+    color: [1, 1, 1] as [number, number, number], // White by default
   };
 }
 
@@ -96,5 +105,7 @@ export function getEpicycloidDefaults(index: number) {
     speed: EPICYCLOID_DEFAULTS.speed[i],
     glow: EPICYCLOID_DEFAULTS.glow[i],
     samples: EPICYCLOID_DEFAULTS.samples,
+    intensity: 0.5, // NEW: Default intensity (0-1)
+    color: [1, 1, 1] as [number, number, number], // White by default
   };
 }
