@@ -4,7 +4,7 @@
  * Displays read-only information: duration, start time, end time.
  */
 
-import type { UniformVec3, ShapeLimits } from '../../types/config';
+import type { UniformVec3, ShapeLimits, AudioTrackInfo } from '../../types/config';
 import { SliderField } from '../FormFields/SliderField';
 import { getSliderConfig } from '../../constants/sliderDefaults';
 
@@ -31,6 +31,9 @@ interface SegmentTabProps {
   transitionDuration: number;
   onTransitionDurationChange: (duration: number) => void;
   maxShapeLimits: ShapeLimits;
+  audioTrack?: AudioTrackInfo;
+  lockToAudioDuration: boolean;
+  totalDuration: number;
 }
 
 export function SegmentTab({
@@ -46,6 +49,9 @@ export function SegmentTab({
   transitionDuration,
   onTransitionDurationChange,
   maxShapeLimits,
+  audioTrack,
+  lockToAudioDuration,
+  totalDuration,
 }: SegmentTabProps) {
   const rgbToHex = (rgb: UniformVec3): string => {
     const r = Math.round(rgb[0] * 255).toString(16).padStart(2, '0');
@@ -62,6 +68,11 @@ export function SegmentTab({
   };
 
   const useTint = tint !== undefined;
+
+  // Calculate remaining audio time
+  const remainingTime = audioTrack && Number.isFinite(audioTrack.duration)
+    ? audioTrack.duration - totalDuration
+    : undefined;
 
   return (
     <div className="space-y-6">
@@ -82,6 +93,21 @@ export function SegmentTab({
             <span className="font-medium text-white">{endSec.toFixed(2)}s</span>
           </div>
         </div>
+
+        {/* Audio Lock Feedback */}
+        {audioTrack && lockToAudioDuration && (
+          <div className={`mt-3 p-2 rounded-lg text-xs ${
+            remainingTime !== undefined && remainingTime < 0
+              ? 'bg-red-500/10 border border-red-500/30 text-red-300'
+              : 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-300'
+          }`}>
+            {remainingTime !== undefined && remainingTime < 0 ? (
+              <span>⚠️ Duration locked to audio track. Exceeded by {Math.abs(remainingTime).toFixed(2)}s</span>
+            ) : (
+              <span>🔒 Duration locked to audio track. {remainingTime?.toFixed(2)}s remaining</span>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Background Color */}

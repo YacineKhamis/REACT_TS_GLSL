@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import ThreeScene from './components/ThreeScene';
 import PlaybackBar from './components/PlaybackBar';
@@ -6,8 +6,15 @@ import ErrorBoundary from './components/ErrorBoundary';
 import { Dashboard } from './components/Dashboard/Dashboard';
 import { ProjectModal } from './components/ProjectModal/ProjectModal';
 import { TimelineModal } from './components/TimelineModal/TimelineModal';
+import { ExportModal } from './components/ExportModal/ExportModal';
 import { useProjectState } from './hooks/useProjectState';
 import { useAppNavigation } from './hooks/useAppNavigation';
+import { useAudioTrackLoader } from './hooks/useAudioTrack';
+import { useAudioPlayer } from './hooks/useAudioPlayer';
+import { useVideoExport } from './hooks/useVideoExport';
+import { extractAudioTrackFromElement } from './utils/export/audioHelpers';
+import type { ExportSettings } from './types/export';
+import { MAX_SEGMENTS, MAX_INSTANCES, TOTAL_INSTANCE_SLOTS, LOOP_DETECTION_THRESHOLD } from './constants/rendering';
 
 export default function App() {
   const {
@@ -31,28 +38,127 @@ export default function App() {
     updateProjectUniforms,
     saveProject,
     loadProject,
+    updateAudioTrack,
+    setLockToAudioDuration,
+    extendSegmentToAudioEnd,
+    distributeRemainingDuration,
   } = useProjectState();
 
   const [isDashboardVisible, setIsDashboardVisible] = useState(true);
   const [selectedSegmentIndex, setSelectedSegmentIndex] = useState(0);
+  const previousTimeRef = useRef(currentTime);
+  const currentTimeRef = useRef(currentTime);
+
+  // Keep currentTimeRef in sync
+  useEffect(() => {
+    currentTimeRef.current = currentTime;
+  }, [currentTime]);
 
   // Navigation state
   const navigation = useAppNavigation();
 
-  const handlePlayPause = useCallback(() => {
-    setIsPlaying(prev => !prev);
+  const currentAudioTrack = config.audioTrack;
+  const {
+    isLoading: isAudioLoading,
+    error: audioError,
+    loadFromFile: loadAudioFromFile,
+    resetError: resetAudioError,
+  } = useAudioTrackLoader();
+
+  const handleAudioEnded = useCallback(() => {
+    setIsPlaying(false);
   }, [setIsPlaying]);
+
+  const audioCallbacks = useMemo(() => ({ onEnded: handleAudioEnded }), [handleAudioEnded]);
+  const audioPlayer = useAudioPlayer(config.audioTrack, audioCallbacks);
+  const { play: playAudio, pause: pauseAudio, seek: seekAudio, audioElement } = audioPlayer;
+
+  // Video Export hook
+  const {
+    isExporting,
+    progress: exportProgress,
+    startExport,
+    finishExport,
+    updateProgress,
+  } = useVideoExport({
+    onComplete: (result) => {
+      console.log('Export terminé:', result);
+      // Téléchargement automatique
+      const url = URL.createObjectURL(result.blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = result.filename;
+      a.click();
+      URL.revokeObjectURL(url);
+    },
+    onError: (error) => {
+      console.error('Erreur export:', error);
+      alert(`Échec export: ${error}`);
+    },
+  });
+
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+
+  // Mettre à jour la progression d'export en temps réel
+  useEffect(() => {
+    if (isExporting) {
+      updateProgress(currentTime);
+    }
+  }, [currentTime, isExporting, updateProgress]);
+
+  const handlePlayPause = useCallback(() => {
+    setIsPlaying(prev => {
+      const next = !prev;
+      if (next) {
+        playAudio(currentTimeRef.current);
+      } else {
+        pauseAudio();
+      }
+      return next;
+    });
+  }, [pauseAudio, playAudio, setIsPlaying]);
 
   const handleScrub = useCallback((time: number) => {
     setCurrentTime(time);
-  }, [setCurrentTime]);
+    seekAudio(time);
+  }, [seekAudio, setCurrentTime]);
+
+  // Keep audio looped with the timeline when total duration wraps around.
+  useEffect(() => {
+    const prev = previousTimeRef.current;
+    previousTimeRef.current = currentTime;
+
+    if (
+      !config.audioTrack ||
+      !isPlaying ||
+      totalDuration <= 0
+    ) {
+      return;
+    }
+
+    const nearEnd = prev > totalDuration - LOOP_DETECTION_THRESHOLD;
+    const looped = currentTime < prev && nearEnd;
+    if (looped) {
+      seekAudio(0);
+      playAudio(0);
+    }
+  }, [config.audioTrack, currentTime, isPlaying, playAudio, seekAudio, totalDuration]);
+
+  // Calculate current segment index (changes ~1-2 times per minute instead of 60 times per second)
+  const currentSegmentIndex = useMemo(() => {
+    for (let i = 0; i < config.segments.length; i++) {
+      const seg = config.segments[i];
+      if (currentTime >= seg.startSec && currentTime < seg.startSec + seg.durationSec) {
+        return i;
+      }
+    }
+    return config.segments.length > 0 ? config.segments.length - 1 : 0;
+  }, [config.segments, currentTime]);
 
   // NEW: Generate shader uniforms from per-instance data
   // Only sends current + previous segment data (16 slots total: 0-7 prev, 8-15 current)
+  // OPTIMIZED: Only recalculates when segment changes or config changes, NOT on every frame
   const shaderUniforms = useMemo(() => {
-    const MAX_SEGMENTS = 20;
-    const MAX_INSTANCES = 8;
-    const TOTAL_INSTANCE_SLOTS = 16; // prev (0-7) + current (8-15)
     const uniforms: Record<string, { value: unknown }> = {};
 
     // Basic uniforms
@@ -138,16 +244,8 @@ export default function App() {
     const epiGlow = new Float32Array(TOTAL_INSTANCE_SLOTS);
     const epiSamples = new Int32Array(TOTAL_INSTANCE_SLOTS);
 
-    // Find current segment index
-    let currentSegIdx = 0;
-    for (let i = 0; i < config.segments.length; i++) {
-      const seg = config.segments[i];
-      if (currentTime >= seg.startSec && currentTime < seg.startSec + seg.durationSec) {
-        currentSegIdx = i;
-        break;
-      }
-    }
-
+    // Use pre-calculated segment index from useMemo above
+    const currentSegIdx = currentSegmentIndex;
     const prevSegIdx = Math.max(0, currentSegIdx - 1);
 
     // Helper to fill instance data for a segment at offset (0 for prev, 8 for current)
@@ -290,7 +388,49 @@ export default function App() {
     uniforms.uEpiSamples = { value: epiSamples };
 
     return uniforms;
-  }, [config.segments, config.uniforms.epicycloidsSampleFactor, currentTime]);
+  }, [config.segments, config.uniforms.epicycloidsSampleFactor, currentSegmentIndex]);
+
+  const handleAudioTrackSelect = useCallback(
+    async (file: File) => {
+      try {
+        const track = await loadAudioFromFile(file);
+        if (currentAudioTrack?.objectUrl) {
+          URL.revokeObjectURL(currentAudioTrack.objectUrl);
+        }
+        resetAudioError();
+        updateAudioTrack(track);
+      } catch (err) {
+        console.error('Erreur lors du chargement audio:', err);
+      }
+    },
+    [currentAudioTrack, loadAudioFromFile, resetAudioError, updateAudioTrack],
+  );
+
+  const handleAudioTrackRemove = useCallback(() => {
+    if (currentAudioTrack?.objectUrl) {
+      URL.revokeObjectURL(currentAudioTrack.objectUrl);
+    }
+    resetAudioError();
+    updateAudioTrack(undefined);
+  }, [currentAudioTrack, resetAudioError, updateAudioTrack]);
+
+  const handleAudioLockChange = useCallback(
+    (locked: boolean) => {
+      setLockToAudioDuration(locked);
+    },
+    [setLockToAudioDuration],
+  );
+
+  const handleExtendSegmentToAudioEnd = useCallback(
+    (index: number) => {
+      extendSegmentToAudioEnd(index);
+    },
+    [extendSegmentToAudioEnd],
+  );
+
+  const handleDistributeRemainingDurations = useCallback(() => {
+    distributeRemainingDuration();
+  }, [distributeRemainingDuration]);
 
   const handleSaveProject = useCallback(() => {
     try {
@@ -310,12 +450,58 @@ export default function App() {
 
   const handleLoadProject = useCallback((data: unknown) => {
     try {
+      if (currentAudioTrack?.objectUrl) {
+        URL.revokeObjectURL(currentAudioTrack.objectUrl);
+      }
       loadProject(data);
+      resetAudioError();
     } catch (err) {
       console.error('Erreur lors du chargement du projet:', err);
       alert('Fichier JSON invalide ou incompatible.');
     }
-  }, [loadProject]);
+  }, [currentAudioTrack, loadProject, resetAudioError]);
+
+  const handleStartExport = useCallback(async (settings: ExportSettings) => {
+    // Récupérer le canvas WebGL
+    const canvas = document.querySelector('canvas') as HTMLCanvasElement;
+    if (!canvas) {
+      alert('Canvas introuvable');
+      return;
+    }
+
+    // Extraire la piste audio depuis l'élément audio qui joue déjà
+    let audioTrack: MediaStreamTrack | undefined;
+    if (config.audioTrack && audioElement) {
+      try {
+        audioTrack = extractAudioTrackFromElement(audioElement);
+        if (!audioTrack) {
+          console.warn('Impossible d\'extraire l\'audio, export vidéo sans son');
+        }
+      } catch (err) {
+        console.error('Erreur extraction audio:', err);
+        // Continuer sans audio
+      }
+    }
+
+    // Réinitialiser au début et lancer la lecture
+    setCurrentTime(0);
+
+    // Petit délai pour que le canvas et l'audio soient prêts
+    await new Promise(resolve => setTimeout(resolve, 200));
+
+    setIsPlaying(true);
+
+    // Démarrer l'enregistrement
+    await startExport(canvas, audioTrack, totalDuration, settings);
+
+    // Attendre la fin de l'animation, puis finaliser
+    setTimeout(async () => {
+      setIsPlaying(false);
+      await finishExport();
+      setIsExportModalOpen(false); // Fermer le modal après export
+    }, totalDuration * 1000 + 500); // +500ms de marge
+
+  }, [config.audioTrack, audioElement, totalDuration, startExport, finishExport, setCurrentTime, setIsPlaying]);
 
   return (
     <>
@@ -343,6 +529,7 @@ export default function App() {
               onToggleVisibility={() => setIsDashboardVisible(prev => !prev)}
               onEditProject={navigation.openProject}
               onEditTimeline={navigation.openTimeline}
+              onExportVideo={() => setIsExportModalOpen(true)}
             />
           )}
         </>
@@ -382,6 +569,14 @@ export default function App() {
         onMaxShapeLimitsChange={updateMaxShapeLimits}
         uniforms={config.uniforms}
         onUniformsChange={updateProjectUniforms}
+        audioTrack={config.audioTrack}
+        isAudioLoading={isAudioLoading}
+        audioError={audioError}
+        onAudioTrackSelect={handleAudioTrackSelect}
+        onAudioTrackRemove={handleAudioTrackRemove}
+        totalDuration={totalDuration}
+        isAudioLocked={config.lockToAudioDuration ?? false}
+        onAudioLockChange={handleAudioLockChange}
         onNew={() => {
           if (window.confirm('Are you sure you want to create a new project? All unsaved changes will be lost.')) {
             window.location.reload();
@@ -410,9 +605,22 @@ export default function App() {
         currentTime={currentTime}
         isPlaying={isPlaying}
         totalDuration={totalDuration}
+        audioTrack={config.audioTrack}
+        lockToAudioDuration={config.lockToAudioDuration ?? false}
+        onToggleAudioLock={handleAudioLockChange}
+        onExtendSegmentToAudioEnd={handleExtendSegmentToAudioEnd}
+        onDistributeRemainingDuration={handleDistributeRemainingDurations}
         onPlayPause={handlePlayPause}
         onScrub={handleScrub}
         shaderUniforms={shaderUniforms}
+      />
+
+      <ExportModal
+        isOpen={isExportModalOpen}
+        onClose={() => setIsExportModalOpen(false)}
+        onStartExport={handleStartExport}
+        progress={exportProgress}
+        isExporting={isExporting}
       />
     </>
   );

@@ -52,6 +52,14 @@ export function migrateProject(data: Record<string, unknown>): ProjectConfig {
     epicycloidsSampleFactor: projectUniforms?.epicycloidsSampleFactor ?? 1,
   };
 
+  // Ensure new audio lock and cues defaults
+  if (data.lockToAudioDuration === undefined) {
+    data.lockToAudioDuration = false;
+  }
+  if (!data.audioCues) {
+    data.audioCues = [];
+  }
+
   // Update version
   data.version = MIGRATION_VERSION;
 

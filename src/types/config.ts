@@ -19,6 +19,36 @@ export type UniformScalar = number;
 export type UniformVec3 = [number, number, number];
 
 /**
+ * Metadata for an audio track associated with the project.
+ * Stores duration and file info; runtime-only fields (objectUrl) are optional.
+ */
+export interface AudioTrackInfo {
+  /** Original file name (displayed to the user). */
+  name: string;
+  /** Length in seconds. */
+  duration: number;
+  /** File size in bytes. */
+  size?: number;
+  /** MIME type reported by the browser (e.g., audio/mpeg). */
+  mimeType?: string;
+  /** Last modified timestamp from the File handle. */
+  lastModified?: number;
+  /** Current availability of the underlying file asset. */
+  status: 'ready' | 'missing';
+  /** Runtime-only object URL for playback (not persisted). */
+  objectUrl?: string;
+}
+
+/**
+ * User-defined cue/marker on the audio timeline.
+ */
+export interface AudioCue {
+  id: string;
+  timeSec: number;
+  label: string;
+}
+
+/**
  * Project-level maximum shape instance counts.
  * Defines the maximum number of instances allowed per shape type for the entire project.
  * Each segment can then use up to these limits.
@@ -153,6 +183,18 @@ export interface ProjectConfig {
    * and their start/end times are derived from the cumulative durations.
    */
   segments: SegmentConfig[];
+  /**
+   * Optional audio track metadata for aligning the timeline.
+   */
+  audioTrack?: AudioTrackInfo;
+  /**
+   * When true, the sum of segment durations is clamped to the audio track duration.
+   */
+  lockToAudioDuration?: boolean;
+  /**
+   * Collection of audio cues/markers used for snapping and automation.
+   */
+  audioCues?: AudioCue[];
 }
 
 /**

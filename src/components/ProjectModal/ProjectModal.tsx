@@ -5,7 +5,7 @@
  */
 
 import * as Dialog from '@radix-ui/react-dialog';
-import type { UniformSet, ShapeLimits } from '../../types/config';
+import type { UniformSet, ShapeLimits, AudioTrackInfo } from '../../types/config';
 import { ProjectSettings } from './ProjectSettings';
 
 interface ProjectModalProps {
@@ -18,6 +18,14 @@ interface ProjectModalProps {
   onMaxShapeLimitsChange: (limits: ShapeLimits) => void;
   uniforms: UniformSet;
   onUniformsChange: (uniforms: UniformSet) => void;
+  audioTrack?: AudioTrackInfo;
+  isAudioLoading: boolean;
+  audioError?: string | null;
+  onAudioTrackSelect: (file: File) => void;
+  onAudioTrackRemove: () => void;
+  totalDuration: number;
+  isAudioLocked: boolean;
+  onAudioLockChange: (value: boolean) => void;
   onNew: () => void;
   onSave: () => void;
   onLoad: (data: unknown) => void;
@@ -33,6 +41,14 @@ export function ProjectModal({
   onMaxShapeLimitsChange,
   uniforms,
   onUniformsChange,
+  audioTrack,
+  isAudioLoading,
+  audioError,
+  onAudioTrackSelect,
+  onAudioTrackRemove,
+  totalDuration,
+  isAudioLocked,
+  onAudioLockChange,
   onNew,
   onSave,
   onLoad,
@@ -94,6 +110,14 @@ export function ProjectModal({
                 onMaxShapeLimitsChange={onMaxShapeLimitsChange}
                 uniforms={uniforms}
                 onUniformsChange={onUniformsChange}
+                audioTrack={audioTrack}
+                isAudioLoading={isAudioLoading}
+                audioError={audioError}
+                onAudioTrackSelect={onAudioTrackSelect}
+                onAudioTrackRemove={onAudioTrackRemove}
+                totalDuration={totalDuration}
+                isAudioLockEnabled={isAudioLocked}
+                onAudioLockChange={onAudioLockChange}
                 onNew={onNew}
                 onSave={onSave}
                 onLoad={onLoad}

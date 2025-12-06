@@ -4,7 +4,7 @@
  */
 
 import * as Dialog from '@radix-ui/react-dialog';
-import type { SegmentConfig, ShapeLimits, UniformVec3 } from '../../types/config';
+import type { SegmentConfig, ShapeLimits, UniformVec3, AudioTrackInfo } from '../../types/config';
 import type { ShapeInstanceCollection } from '../../types/shapeInstances';
 import { generateInstanceId } from '../../types/shapeInstances';
 import { getCircleDefaults, getExpandingCircleDefaults, getWaveDefaults, getEpicycloidDefaults } from '../../constants/shapeDefaults';
@@ -33,6 +33,11 @@ interface TimelineModalProps {
   currentTime: number;
   isPlaying: boolean;
   totalDuration: number;
+  audioTrack?: AudioTrackInfo;
+  lockToAudioDuration: boolean;
+  onToggleAudioLock: (value: boolean) => void;
+  onExtendSegmentToAudioEnd: (index: number) => void;
+  onDistributeRemainingDuration: () => void;
   onPlayPause: () => void;
   onScrub: (time: number) => void;
   shaderUniforms: Record<string, { value: unknown }>;
@@ -57,6 +62,11 @@ export function TimelineModal({
   currentTime,
   isPlaying,
   totalDuration,
+  audioTrack,
+  lockToAudioDuration,
+  onToggleAudioLock,
+  onExtendSegmentToAudioEnd,
+  onDistributeRemainingDuration,
   onPlayPause,
   onScrub,
   shaderUniforms,
@@ -214,6 +224,13 @@ export function TimelineModal({
                 onDeleteSegment={onDeleteSegment}
                 onUpdateSegmentLabel={onUpdateSegmentLabel}
                 onUpdateSegmentDuration={onUpdateSegmentDuration}
+                audioDuration={audioTrack?.duration}
+                totalDuration={totalDuration}
+                lockToAudioDuration={lockToAudioDuration}
+                onToggleAudioLock={onToggleAudioLock}
+                onExtendToTrackEnd={onExtendSegmentToAudioEnd}
+                onDistributeRemaining={onDistributeRemainingDuration}
+                onScrub={onScrub}
               />
             </div>
 
@@ -254,6 +271,9 @@ export function TimelineModal({
                     onUpdateSegmentShapeInstances(selectedSegmentIndex, instances)
                   }
                   maxShapeLimits={maxShapeLimits}
+                  audioTrack={audioTrack}
+                  lockToAudioDuration={lockToAudioDuration}
+                  totalDuration={totalDuration}
                 />
               ) : (
                 <div className="flex items-center justify-center h-full">

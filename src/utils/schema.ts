@@ -101,6 +101,21 @@ export const shapeLimitsSchema = z.object({
   expandingCircles: z.number().int().nonnegative(),
 });
 
+const audioTrackSchema = z.object({
+  name: z.string(),
+  duration: z.number().nonnegative(),
+  size: z.number().nonnegative().optional(),
+  mimeType: z.string().optional(),
+  lastModified: z.number().optional(),
+  status: z.union([z.literal('ready'), z.literal('missing')]),
+  objectUrl: z.string().optional(),
+});
+const audioCueSchema = z.object({
+  id: z.string(),
+  timeSec: z.number().nonnegative(),
+  label: z.string(),
+});
+
 // Project schema (v2). The list of segments is validated but further
 // sanitisation (start/end recalculation) happens in the hook.
 export const projectConfigSchema = z.object({
@@ -110,6 +125,9 @@ export const projectConfigSchema = z.object({
   maxShapeLimits: shapeLimitsSchema,
   uniforms: uniformSetSchema,
   segments: z.array(segmentConfigSchema),
+  audioTrack: audioTrackSchema.optional(),
+  audioCues: z.array(audioCueSchema).optional(),
+  lockToAudioDuration: z.boolean().optional(),
 });
 
 /**

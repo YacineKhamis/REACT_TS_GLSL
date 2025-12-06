@@ -5,6 +5,7 @@ import type {
   UniformSet,
   UniformVec3,
   ShapeLimits,
+  AudioTrackInfo,
 } from '../types/config';
 import type { ShapeInstanceCollection } from '../types/shapeInstances';
 import { parseProjectConfig } from '../utils/schema';
@@ -65,6 +66,9 @@ function createDefaultProject(): ProjectConfig {
     maxShapeLimits: { ...DEFAULT_SHAPE_LIMITS },
     uniforms: { ...DEFAULT_UNIFORMS },
     segments: [segment],
+    audioTrack: undefined,
+    lockToAudioDuration: false,
+    audioCues: [],
   };
 }
 
@@ -83,6 +87,26 @@ function recalcSegmentTimes(segments: SegmentConfig[]): SegmentConfig[] {
   });
 }
 
+function clampSegmentsToAudioLimit(
+  segments: SegmentConfig[],
+  lockEnabled?: boolean,
+  audioDuration?: number
+): SegmentConfig[] {
+  if (!lockEnabled || !audioDuration || audioDuration <= 0) {
+    return segments;
+  }
+  let remaining = audioDuration;
+  return segments.map((seg) => {
+    const maxForSegment = Math.max(0, remaining);
+    const clampedDuration = Math.min(Math.max(seg.durationSec, 0), maxForSegment);
+    remaining = Math.max(0, remaining - clampedDuration);
+    if (clampedDuration === seg.durationSec) {
+      return seg;
+    }
+    return { ...seg, durationSec: clampedDuration };
+  });
+}
+
 
 /**
  * Custom hook encapsulating the logic for managing a project's state. It
@@ -95,7 +119,11 @@ export function useProjectState(initialConfig?: ProjectConfig) {
   const [config, setConfig] = useState<ProjectConfig>(() => {
     if (initialConfig) {
       // Ensure segment times are coherent on initial load
-      return { ...initialConfig, segments: recalcSegmentTimes(initialConfig.segments) };
+      return {
+        ...initialConfig,
+        segments: recalcSegmentTimes(initialConfig.segments),
+        lockToAudioDuration: initialConfig.lockToAudioDuration ?? false,
+      };
     }
     return createDefaultProject();
   });
@@ -109,82 +137,140 @@ export function useProjectState(initialConfig?: ProjectConfig) {
 
   /**
    * Update the list of segments and recalculate start/end times.
+   * NOTE: Empty dependencies array is intentional - uses setConfig(prev => ...) pattern.
    */
   const setSegments = useCallback(
     (segments: SegmentConfig[]) => {
-      setConfig(prev => ({ ...prev, segments: recalcSegmentTimes(segments) }));
+      setConfig(prev => {
+        const limited = clampSegmentsToAudioLimit(
+          segments,
+          prev.lockToAudioDuration,
+          prev.audioTrack?.duration
+        );
+        return { ...prev, segments: recalcSegmentTimes(limited) };
+      });
     },
-    [setConfig],
+    [],
   );
 
   /**
    * Add a new segment to the end of the timeline with default values.
+   * OPTIMIZED: Uses setConfig(prev => ...) to avoid dependency on config.segments
    */
   const addSegment = useCallback(() => {
-    setSegments([...config.segments, {
-      id: generateId(),
-      label: `Segment ${config.segments.length}`,
-      durationSec: 10,
-      startSec: 0,
-      endSec: 0,
-      transitionDuration: DEFAULT_SEGMENT_TRANSITION,
-      backgroundColor: [0, 0, 0],
-      shapeInstances: createEmptyCollection(),
-    }]);
-  }, [config.segments, setSegments]);
+    setConfig(prev => {
+      const newSegment: SegmentConfig = {
+        id: generateId(),
+        label: `Segment ${prev.segments.length}`,
+        durationSec: 10,
+        startSec: 0,
+        endSec: 0,
+        transitionDuration: DEFAULT_SEGMENT_TRANSITION,
+        backgroundColor: [0, 0, 0],
+        shapeInstances: createEmptyCollection(),
+      };
+      const segments = [...prev.segments, newSegment];
+      const limited = clampSegmentsToAudioLimit(
+        segments,
+        prev.lockToAudioDuration,
+        prev.audioTrack?.duration
+      );
+      return { ...prev, segments: recalcSegmentTimes(limited) };
+    });
+  }, []);
 
   /**
    * Duplicate an existing segment. The copy will be inserted after the
    * source index and given a new ID. Shape instances are deep-copied.
+   * OPTIMIZED: Uses setConfig(prev => ...) to avoid dependency on config.segments
    */
   const duplicateSegment = useCallback((index: number) => {
-    const target = config.segments[index];
-    if (!target) return;
-    const clone: SegmentConfig = {
-      ...target,
-      id: generateId(),
-      label: `${target.label} copy`,
-      backgroundColor: [...target.backgroundColor] as UniformVec3,
-      tint: target.tint ? ([...target.tint] as UniformVec3) : undefined,
-      shapeInstances: {
-        circles: target.shapeInstances.circles.map(c => ({ ...c, id: generateId() })),
-        waves: target.shapeInstances.waves.map(w => ({ ...w, id: generateId() })),
-        epicycloids: target.shapeInstances.epicycloids.map(e => ({ ...e, id: generateId() })),
-        expandingCircles: target.shapeInstances.expandingCircles.map(ec => ({ ...ec, id: generateId() })),
-      },
-    };
-    const segments = [...config.segments];
-    segments.splice(index + 1, 0, clone);
-    setSegments(segments);
-  }, [config.segments, setSegments]);
+    setConfig(prev => {
+      const target = prev.segments[index];
+      if (!target) return prev;
+
+      const clone: SegmentConfig = {
+        ...target,
+        id: generateId(),
+        label: `${target.label} copy`,
+        backgroundColor: [...target.backgroundColor] as UniformVec3,
+        tint: target.tint ? ([...target.tint] as UniformVec3) : undefined,
+        shapeInstances: {
+          circles: target.shapeInstances.circles.map(c => ({ ...c, id: generateId() })),
+          waves: target.shapeInstances.waves.map(w => ({ ...w, id: generateId() })),
+          epicycloids: target.shapeInstances.epicycloids.map(e => ({ ...e, id: generateId() })),
+          expandingCircles: target.shapeInstances.expandingCircles.map(ec => ({ ...ec, id: generateId() })),
+        },
+      };
+
+      const segments = [...prev.segments];
+      segments.splice(index + 1, 0, clone);
+
+      const limited = clampSegmentsToAudioLimit(
+        segments,
+        prev.lockToAudioDuration,
+        prev.audioTrack?.duration
+      );
+      return { ...prev, segments: recalcSegmentTimes(limited) };
+    });
+  }, []);
 
   /**
    * Remove a segment by index. Ensures there is always at least one
    * segment remaining. Optionally prompts for confirmation outside.
+   * OPTIMIZED: Uses setConfig(prev => ...) to avoid dependency on config.segments
    */
   const removeSegment = useCallback((index: number) => {
-    if (config.segments.length <= 1) return;
-    const segments = config.segments.filter((_, i) => i !== index);
-    setSegments(segments);
-  }, [config.segments, setSegments]);
+    setConfig(prev => {
+      if (prev.segments.length <= 1) return prev;
+
+      const segments = prev.segments.filter((_, i) => i !== index);
+      const limited = clampSegmentsToAudioLimit(
+        segments,
+        prev.lockToAudioDuration,
+        prev.audioTrack?.duration
+      );
+      return { ...prev, segments: recalcSegmentTimes(limited) };
+    });
+  }, []);
 
   /**
    * Update a segment's duration. This will trigger recalculation of
    * start/end times for all segments.
+   * OPTIMIZED: Uses setConfig(prev => ...) to avoid dependency on config.segments
    */
   const updateSegmentDuration = useCallback((index: number, newDuration: number) => {
-    const duration = Math.max(0, newDuration);
-    const segments = config.segments.map((seg, i) => i === index ? { ...seg, durationSec: duration } : seg);
-    setSegments(segments);
-  }, [config.segments, setSegments]);
+    setConfig(prev => {
+      const duration = Math.max(0, newDuration);
+      const segments = prev.segments.map((seg, i) =>
+        i === index ? { ...seg, durationSec: duration } : seg
+      );
+      const limited = clampSegmentsToAudioLimit(
+        segments,
+        prev.lockToAudioDuration,
+        prev.audioTrack?.duration
+      );
+      return { ...prev, segments: recalcSegmentTimes(limited) };
+    });
+  }, []);
 
   /**
    * Update a segment's label.
+   * OPTIMIZED: Uses setConfig(prev => ...) to avoid dependency on config.segments
    */
   const updateSegmentLabel = useCallback((index: number, newLabel: string) => {
-    const segments = config.segments.map((seg, i) => i === index ? { ...seg, label: newLabel } : seg);
-    setSegments(segments);
-  }, [config.segments, setSegments]);
+    setConfig(prev => {
+      const segments = prev.segments.map((seg, i) =>
+        i === index ? { ...seg, label: newLabel } : seg
+      );
+      const limited = clampSegmentsToAudioLimit(
+        segments,
+        prev.lockToAudioDuration,
+        prev.audioTrack?.duration
+      );
+      return { ...prev, segments: recalcSegmentTimes(limited) };
+    });
+  }, []);
 
   /**
    * Update global project uniforms. Completely replaces the existing
@@ -192,6 +278,40 @@ export function useProjectState(initialConfig?: ProjectConfig) {
    */
   const updateProjectUniforms = useCallback((uniforms: UniformSet) => {
     setConfig(prev => ({ ...prev, uniforms }));
+  }, []);
+
+  /**
+   * Update the project's audio track metadata.
+   */
+  const updateAudioTrack = useCallback((track: AudioTrackInfo | undefined) => {
+    setConfig(prev => {
+      const limitedSegments = clampSegmentsToAudioLimit(
+        prev.segments,
+        prev.lockToAudioDuration,
+        track?.duration
+      );
+      return {
+        ...prev,
+        audioTrack: track,
+        segments: recalcSegmentTimes(limitedSegments),
+      };
+    });
+  }, []);
+
+  const setLockToAudioDuration = useCallback((lock: boolean) => {
+    setConfig(prev => {
+      if (prev.lockToAudioDuration === lock) return prev;
+      const limitedSegments = clampSegmentsToAudioLimit(
+        prev.segments,
+        lock,
+        prev.audioTrack?.duration
+      );
+      return {
+        ...prev,
+        lockToAudioDuration: lock,
+        segments: recalcSegmentTimes(limitedSegments),
+      };
+    });
   }, []);
 
   /**
@@ -280,6 +400,62 @@ export function useProjectState(initialConfig?: ProjectConfig) {
   }, [config.segments, setSegments]);
 
   /**
+   * Extend a segment so it fills the remaining audio duration.
+   */
+  const extendSegmentToAudioEnd = useCallback((index: number) => {
+    setConfig(prev => {
+      const audioDuration = prev.audioTrack?.duration;
+      if (audioDuration === undefined || index < 0 || index >= prev.segments.length) {
+        return prev;
+      }
+      const otherTotal = prev.segments.reduce(
+        (sum, seg, i) => (i === index ? sum : sum + seg.durationSec),
+        0
+      );
+      const newDuration = Math.max(0, audioDuration - otherTotal);
+      const updatedSegments = prev.segments.map((seg, i) =>
+        i === index ? { ...seg, durationSec: newDuration } : seg
+      );
+      const limited = clampSegmentsToAudioLimit(
+        updatedSegments,
+        prev.lockToAudioDuration,
+        audioDuration
+      );
+      return {
+        ...prev,
+        segments: recalcSegmentTimes(limited),
+      };
+    });
+  }, []);
+
+  /**
+   * Evenly distribute remaining audio time across all segments.
+   */
+  const distributeRemainingDuration = useCallback(() => {
+    setConfig(prev => {
+      const audioDuration = prev.audioTrack?.duration;
+      if (!audioDuration || prev.segments.length === 0) return prev;
+      const currentTotal = prev.segments.reduce((sum, seg) => sum + seg.durationSec, 0);
+      const remaining = audioDuration - currentTotal;
+      if (remaining <= 0) return prev;
+      const increment = remaining / prev.segments.length;
+      const updatedSegments = prev.segments.map(seg => ({
+        ...seg,
+        durationSec: seg.durationSec + increment,
+      }));
+      const limited = clampSegmentsToAudioLimit(
+        updatedSegments,
+        prev.lockToAudioDuration,
+        audioDuration
+      );
+      return {
+        ...prev,
+        segments: recalcSegmentTimes(limited),
+      };
+    });
+  }, []);
+
+  /**
    * Update the shape instances for a specific segment.
    * Validates that instance counts don't exceed project maximum limits.
    */
@@ -332,7 +508,16 @@ export function useProjectState(initialConfig?: ProjectConfig) {
    * download this string as a file. No validation is performed here.
    */
   const saveProject = useCallback((): string => {
-    return JSON.stringify(config, null, 2);
+    const serialisable: ProjectConfig = {
+      ...config,
+      audioTrack: config.audioTrack
+        ? (() => {
+            const { objectUrl, ...rest } = config.audioTrack;
+            return { ...rest };
+          })()
+        : undefined,
+    };
+    return JSON.stringify(serialisable, null, 2);
   }, [config]);
 
   /**
@@ -345,8 +530,21 @@ export function useProjectState(initialConfig?: ProjectConfig) {
     // Migrate project to current version if needed
     const migrated = migrateProject(data as Record<string, unknown>);
     const parsed = parseProjectConfig(migrated);
-    const segments = recalcSegmentTimes(parsed.segments);
-    setConfig({ ...parsed, segments });
+    const sanitisedAudio: AudioTrackInfo | undefined = parsed.audioTrack
+      ? { ...parsed.audioTrack, objectUrl: undefined, status: 'missing' }
+      : undefined;
+    const limitedSegments = clampSegmentsToAudioLimit(
+      parsed.segments,
+      parsed.lockToAudioDuration ?? false,
+      parsed.audioTrack?.duration
+    );
+    const segments = recalcSegmentTimes(limitedSegments);
+    setConfig({
+      ...parsed,
+      segments,
+      audioTrack: sanitisedAudio,
+      lockToAudioDuration: parsed.lockToAudioDuration ?? false,
+    });
     setCurrentTime(0);
     setIsPlaying(false);
   }, []);
@@ -376,5 +574,9 @@ export function useProjectState(initialConfig?: ProjectConfig) {
     resolveUniformsForTime,
     saveProject,
     loadProject,
+    updateAudioTrack,
+    setLockToAudioDuration,
+    extendSegmentToAudioEnd,
+    distributeRemainingDuration,
   };
 }

@@ -123,22 +123,23 @@ export const SLIDER_CONFIG = {
   // ===== Epicycloids Parameters =====
   epicycloids: {
     R: {
-      min: 0.1,
-      max: 2,
-      step: 0.05,
+      min: 0,
+      max: 30,
+      step: 0.1,
       label: 'Major Radius (R)',
     } as SliderDef,
     r: {
-      min: 0.01,
-      max: 1,
+      min: -12,
+      max: 12,
       step: 0.05,
       label: 'Minor Radius (r)',
     } as SliderDef,
     scale: {
-      min: 0.1,
-      max: 5,
-      step: 0.1,
+      min: 0.001,
+      max: 0.25,
+      step: 0.001,
       label: 'Scale',
+      format: (v: number) => v.toFixed(3),
     } as SliderDef,
     thickness: {
       min: 0.0001,

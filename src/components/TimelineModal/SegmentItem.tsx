@@ -15,6 +15,9 @@ interface SegmentItemProps {
   onUpdateDuration: (duration: number) => void;
   onDuplicate: () => void;
   onDelete: () => void;
+  onExtendToEnd?: () => void;
+  extendDisabled?: boolean;
+  onScrub?: (time: number) => void;
 }
 
 export function SegmentItem({
@@ -26,6 +29,9 @@ export function SegmentItem({
   onUpdateDuration,
   onDuplicate,
   onDelete,
+  onExtendToEnd,
+  extendDisabled,
+  onScrub,
 }: SegmentItemProps) {
   const [isEditingLabel, setIsEditingLabel] = useState(false);
   const [isEditingDuration, setIsEditingDuration] = useState(false);
@@ -51,6 +57,14 @@ export function SegmentItem({
     }
   }, [durationValue, segment.durationSec, onUpdateDuration]);
 
+  const handleClick = useCallback(() => {
+    onSelect();
+    // Scrub audio to segment start when selecting
+    if (onScrub) {
+      onScrub(segment.startSec);
+    }
+  }, [onSelect, onScrub, segment.startSec]);
+
   return (
     <div
       className={`
@@ -61,7 +75,7 @@ export function SegmentItem({
             : 'bg-dark-lighter border-dark-border hover:bg-dark-lighter/80'
         }
       `}
-      onClick={onSelect}
+      onClick={handleClick}
     >
       {/* Segment header */}
       <div className="flex items-center justify-between mb-2">
@@ -143,7 +157,26 @@ export function SegmentItem({
       </div>
 
       {/* Actions */}
-      <div className="flex gap-1">
+      <div className="flex gap-1 flex-wrap">
+        {onExtendToEnd && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              if (!extendDisabled) {
+                onExtendToEnd();
+              }
+            }}
+            className={`flex-1 px-2 py-1 border rounded text-xs font-medium ${
+              extendDisabled
+                ? 'border-dark-border text-gray-500 cursor-not-allowed'
+                : 'border-primary text-primary hover:bg-primary/10'
+            }`}
+            disabled={extendDisabled}
+            title="Étendre ce segment jusqu'à la fin de la piste"
+          >
+            Étendre
+          </button>
+        )}
         <button
           onClick={(e) => {
             e.stopPropagation();

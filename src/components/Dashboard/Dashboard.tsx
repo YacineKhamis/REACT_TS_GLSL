@@ -15,6 +15,7 @@ interface DashboardProps {
   onToggleVisibility?: () => void;
   onEditProject: () => void;
   onEditTimeline: () => void;
+  onExportVideo: () => void;
 }
 
 export function Dashboard({
@@ -24,6 +25,7 @@ export function Dashboard({
   totalDuration,
   onEditProject,
   onEditTimeline,
+  onExportVideo,
 }: DashboardProps) {
   return (
     <div className="fixed inset-0 z-30 flex items-start justify-start pointer-events-none">
@@ -38,6 +40,7 @@ export function Dashboard({
         <ActionButtons
           onEditProject={onEditProject}
           onEditTimeline={onEditTimeline}
+          onExportVideo={onExportVideo}
         />
       </div>
     </div>
