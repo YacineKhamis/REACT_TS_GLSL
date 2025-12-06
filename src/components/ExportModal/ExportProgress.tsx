@@ -32,12 +32,12 @@ export function ExportProgress({ progress }: ExportProgressProps) {
       </div>
 
       {/* Progress Bar */}
-      <div className="w-full h-3 bg-dark-lighter rounded-full overflow-hidden">
+      <div className="w-full h-3 bg-dark-lighter rounded-full overflow-hidden relative">
         <div
-          className="h-full bg-primary"
+          key={`progress-${percentage.toFixed(2)}`}
+          className="h-full bg-primary absolute top-0 left-0"
           style={{
-            width: `${percentage}%`,
-            transition: 'width 0.1s linear'
+            width: `${Math.min(percentage, 100)}%`,
           }}
         />
       </div>

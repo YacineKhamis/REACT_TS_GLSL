@@ -56,6 +56,7 @@ export class MediaRecorderStrategy implements ExportStrategy {
     this.recorder = new MediaRecorder(combinedStream, {
       mimeType,
       videoBitsPerSecond: 8000000, // 8 Mbps
+      audioBitsPerSecond: 192000,  // 192 kbps
     });
 
     // Collecter chunks
@@ -65,7 +66,8 @@ export class MediaRecorderStrategy implements ExportStrategy {
       }
     };
 
-    this.recorder.start(100); // Chunk tous les 100ms
+    // Chunks plus longs (1s) pour potentiellement plus de keyframes
+    this.recorder.start(1000); // Chunk toutes les 1000ms (1 seconde)
     this.progress.state = 'recording';
   }
 
