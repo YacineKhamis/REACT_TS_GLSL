@@ -6,6 +6,7 @@ import type {
   UniformVec3,
   ShapeLimits,
   AudioTrackInfo,
+  TransitionProfile,
 } from '../types/config';
 import type { ShapeInstanceCollection } from '../types/shapeInstances';
 import { parseProjectConfig } from '../utils/schema';
@@ -37,6 +38,15 @@ const DEFAULT_SHAPE_LIMITS: ShapeLimits = {
 const DEFAULT_SEGMENT_TRANSITION = 1.0;
 
 /**
+ * Default transition profile applied to new segments.
+ */
+const DEFAULT_TRANSITION_PROFILE: TransitionProfile = {
+  easing: 'easeInOut',
+  paramClamp: 0.35,
+  enforceOrder: false,
+};
+
+/**
  * Default global uniform values (DEPRECATED - kept for backward compatibility).
  * Most of these are replaced by per-segment and per-instance parameters.
  */
@@ -57,6 +67,7 @@ function createDefaultProject(): ProjectConfig {
     startSec: 0,
     endSec: 10,
     transitionDuration: DEFAULT_SEGMENT_TRANSITION,
+    transitionProfile: { ...DEFAULT_TRANSITION_PROFILE },
     backgroundColor: [0, 0, 0],
     shapeInstances: createEmptyCollection(),
   };
@@ -166,6 +177,7 @@ export function useProjectState(initialConfig?: ProjectConfig) {
         startSec: 0,
         endSec: 0,
         transitionDuration: DEFAULT_SEGMENT_TRANSITION,
+        transitionProfile: { ...DEFAULT_TRANSITION_PROFILE },
         backgroundColor: [0, 0, 0],
         shapeInstances: createEmptyCollection(),
       };
@@ -195,6 +207,7 @@ export function useProjectState(initialConfig?: ProjectConfig) {
         label: `${target.label} copy`,
         backgroundColor: [...target.backgroundColor] as UniformVec3,
         tint: target.tint ? ([...target.tint] as UniformVec3) : undefined,
+        transitionProfile: target.transitionProfile ? { ...target.transitionProfile } : undefined,
         shapeInstances: {
           circles: target.shapeInstances.circles.map(c => ({ ...c, id: generateId() })),
           waves: target.shapeInstances.waves.map(w => ({ ...w, id: generateId() })),
@@ -375,6 +388,16 @@ export function useProjectState(initialConfig?: ProjectConfig) {
   const updateSegmentTransition = useCallback((index: number, duration: number) => {
     const segments = config.segments.map((seg, i) =>
       i === index ? { ...seg, transitionDuration: Math.max(0, duration) } : seg
+    );
+    setSegments(segments);
+  }, [config.segments, setSegments]);
+
+  /**
+   * Update the transition profile for a specific segment.
+   */
+  const updateSegmentTransitionProfile = useCallback((index: number, profile: TransitionProfile | undefined) => {
+    const segments = config.segments.map((seg, i) =>
+      i === index ? { ...seg, transitionProfile: profile } : seg
     );
     setSegments(segments);
   }, [config.segments, setSegments]);
@@ -565,6 +588,7 @@ export function useProjectState(initialConfig?: ProjectConfig) {
     updateProjectName,
     updateMaxShapeLimits,
     updateSegmentTransition,
+    updateSegmentTransitionProfile,
     updateSegmentBackground,
     updateSegmentTint,
     updateSegmentShapeInstances,

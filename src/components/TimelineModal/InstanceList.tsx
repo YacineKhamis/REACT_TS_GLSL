@@ -3,7 +3,8 @@
  * Shows instance ID, enabled status, and allows selection for editing.
  */
 
-import type { ShapeInstance } from '../../types/shapeInstances';
+import type { ShapeInstance, ExpandingCircleInstance, CircleInstance } from '../../types/shapeInstances';
+import { ShapeBadge } from './ShapeBadge';
 
 interface InstanceListProps {
   instances: ShapeInstance[];
@@ -92,6 +93,23 @@ export function InstanceList({
                 Delete
               </button>
             </div>
+            {instance.type === 'expandingCircle' && (
+              <div className="mt-2">
+                <ShapeBadge
+                  shape={(instance as ExpandingCircleInstance).shape}
+                  pulseMode={(instance as ExpandingCircleInstance).pulseMode}
+                />
+              </div>
+            )}
+            {instance.type === 'circle' && (
+              <div className="mt-2">
+                <ShapeBadge
+                  shape={(instance as CircleInstance).shape}
+                  pulseMode="loop"
+                  size="sm"
+                />
+              </div>
+            )}
           </div>
         ))}
       </div>

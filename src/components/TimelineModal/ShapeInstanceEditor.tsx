@@ -4,7 +4,7 @@
  */
 
 import * as Tabs from '@radix-ui/react-tabs';
-import type { UniformVec3, ShapeLimits, AudioTrackInfo } from '../../types/config';
+import type { UniformVec3, ShapeLimits, AudioTrackInfo, TransitionProfile } from '../../types/config';
 import type { ShapeInstanceCollection } from '../../types/shapeInstances';
 import { SegmentTab } from './SegmentTab';
 import { ShapesTab } from './ShapesTab';
@@ -34,6 +34,8 @@ interface ShapeInstanceEditorProps {
   }) => void;
   transitionDuration: number;
   onTransitionDurationChange: (duration: number) => void;
+  transitionProfile?: TransitionProfile;
+  onTransitionProfileChange: (profile: TransitionProfile | undefined) => void;
 
   // Shapes tab props
   shapeInstances: ShapeInstanceCollection;
@@ -58,6 +60,8 @@ export function ShapeInstanceEditor({
   onShapeCountsChange,
   transitionDuration,
   onTransitionDurationChange,
+  transitionProfile,
+  onTransitionProfileChange,
   shapeInstances,
   onShapeInstancesChange,
   maxShapeLimits,
@@ -97,6 +101,8 @@ export function ShapeInstanceEditor({
           onShapeCountsChange={onShapeCountsChange}
           transitionDuration={transitionDuration}
           onTransitionDurationChange={onTransitionDurationChange}
+          transitionProfile={transitionProfile}
+          onTransitionProfileChange={onTransitionProfileChange}
           maxShapeLimits={maxShapeLimits}
           audioTrack={audioTrack}
           lockToAudioDuration={lockToAudioDuration}

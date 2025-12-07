@@ -21,7 +21,7 @@ export const SLIDER_CONFIG = {
     format: (v: number) => `${(v * 100).toFixed(0)}%`,
   } as SliderDef,
 
-  // ===== Fixed Circles Parameters =====
+  // ===== Fixed Shapes Parameters =====
   circles: {
     radius: {
       min: 0.01,
@@ -42,9 +42,16 @@ export const SLIDER_CONFIG = {
       step: 0.1,
       label: 'Glow',
     } as SliderDef,
+    rotationSpeed: {
+      min: -4,
+      max: 4,
+      step: 0.05,
+      label: 'Rotation Speed',
+      format: (v: number) => `${v.toFixed(2)} rad/s`,
+    } as SliderDef,
   },
 
-  // ===== Expanding Circles Parameters =====
+  // ===== Expanding Shapes Parameters =====
   expandingCircles: {
     startRadius: {
       min: 0,
@@ -58,11 +65,12 @@ export const SLIDER_CONFIG = {
       step: 0.1,
       label: 'Period (s)',
     } as SliderDef,
-    maxRadius: {
-      min: 0,
-      max: 1.5,
-      step: 0.05,
-      label: 'Max Radius',
+    expansionSpeed: {
+      min: 0.001,
+      max: 0.3,
+      step: 0.001,
+      label: 'Expansion Speed',
+      format: (v: number) => `${v.toFixed(3)} u/s`,
     } as SliderDef,
     thickness: {
       min: 0.0001,
@@ -82,6 +90,20 @@ export const SLIDER_CONFIG = {
       max: 60,
       step: 0.1,
       label: 'Start Time',
+    } as SliderDef,
+    attack: {
+      min: 0.01,
+      max: 5,
+      step: 0.05,
+      label: 'Attack (s)',
+      format: (v: number) => `${v.toFixed(2)}s`,
+    } as SliderDef,
+    decay: {
+      min: 0.01,
+      max: 10,
+      step: 0.05,
+      label: 'Decay (s)',
+      format: (v: number) => `${v.toFixed(2)}s`,
     } as SliderDef,
   },
 
@@ -190,13 +212,13 @@ export const SLIDER_CONFIG = {
       min: 0,
       max: 8,
       step: 1,
-      label: 'Fixed Circles',
+      label: 'Fixed Shapes',
     } as SliderDef,
     expandingCircles: {
       min: 0,
       max: 8,
       step: 1,
-      label: 'Expanding Circles',
+      label: 'Expanding Shapes',
     } as SliderDef,
     waves: {
       min: 0,

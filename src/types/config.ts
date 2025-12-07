@@ -198,6 +198,19 @@ export interface ProjectConfig {
 }
 
 /**
+ * Transition profile for smooth shape parameter interpolation.
+ * Controls easing behavior and parameter clamping during segment transitions.
+ */
+export interface TransitionProfile {
+  /** Easing function type for interpolation */
+  easing: 'linear' | 'easeInOut' | 'slowEase';
+  /** Maximum parameter change per second (as fraction of transition duration) */
+  paramClamp?: number;
+  /** Whether to enforce parameter order constraints */
+  enforceOrder?: boolean;
+}
+
+/**
  * Description of a single timeline segment. Each segment has its own
  * label, duration and optional uniform overrides. When parsed or
  * manipulated via the state hook, startSec and endSec are recomputed
@@ -235,6 +248,12 @@ export interface SegmentConfig {
    * segment and lasts for the specified duration. Set to 0 for instant transition.
    */
   transitionDuration: number;
+  /**
+   * Transition profile for smooth shape parameter interpolation.
+   * Controls easing and clamping behavior during transitions.
+   * Defaults to { easing: 'easeInOut', paramClamp: 0.35 } if not specified.
+   */
+  transitionProfile?: TransitionProfile;
   /**
    * Background color for this segment. Overrides project-level background.
    */

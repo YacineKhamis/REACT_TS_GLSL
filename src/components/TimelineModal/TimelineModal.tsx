@@ -4,7 +4,7 @@
  */
 
 import * as Dialog from '@radix-ui/react-dialog';
-import type { SegmentConfig, ShapeLimits, UniformVec3, AudioTrackInfo } from '../../types/config';
+import type { SegmentConfig, ShapeLimits, UniformVec3, AudioTrackInfo, TransitionProfile } from '../../types/config';
 import type { ShapeInstanceCollection } from '../../types/shapeInstances';
 import { generateInstanceId } from '../../types/shapeInstances';
 import { getCircleDefaults, getExpandingCircleDefaults, getWaveDefaults, getEpicycloidDefaults } from '../../constants/shapeDefaults';
@@ -28,6 +28,7 @@ interface TimelineModalProps {
   onUpdateSegmentBackground: (index: number, color: UniformVec3) => void;
   onUpdateSegmentTint: (index: number, tint: UniformVec3 | undefined) => void;
   onUpdateSegmentTransition: (index: number, duration: number) => void;
+  onUpdateSegmentTransitionProfile: (index: number, profile: TransitionProfile | undefined) => void;
   onUpdateSegmentShapeInstances: (index: number, instances: ShapeInstanceCollection) => void;
   // Playback props
   currentTime: number;
@@ -58,6 +59,7 @@ export function TimelineModal({
   onUpdateSegmentBackground,
   onUpdateSegmentTint,
   onUpdateSegmentTransition,
+  onUpdateSegmentTransitionProfile,
   onUpdateSegmentShapeInstances,
   currentTime,
   isPlaying,
@@ -265,6 +267,10 @@ export function TimelineModal({
                   transitionDuration={selectedSegment.transitionDuration}
                   onTransitionDurationChange={(duration) =>
                     onUpdateSegmentTransition(selectedSegmentIndex, duration)
+                  }
+                  transitionProfile={selectedSegment.transitionProfile}
+                  onTransitionProfileChange={(profile) =>
+                    onUpdateSegmentTransitionProfile(selectedSegmentIndex, profile)
                   }
                   shapeInstances={selectedSegment.shapeInstances}
                   onShapeInstancesChange={(instances) =>

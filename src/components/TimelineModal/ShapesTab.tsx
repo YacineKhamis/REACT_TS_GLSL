@@ -66,13 +66,13 @@ export function ShapesTab({
   const getTypeLabel = (): string => {
     switch (selectedType) {
       case 'circle':
-        return 'Fixed Circles';
+        return 'Fixed Shapes';
       case 'wave':
         return 'Waves';
       case 'epicycloid':
         return 'Epicycloids';
       case 'expandingCircle':
-        return 'Expanding Circles';
+        return 'Expanding Shapes';
     }
   };
 
@@ -270,7 +270,7 @@ export function ShapesTab({
                 : 'bg-dark-lighter text-gray-400 hover:bg-dark-border'
             }`}
           >
-            Fixed Circles
+            Fixed Shapes
           </button>
           <button
             onClick={() => {
@@ -283,7 +283,7 @@ export function ShapesTab({
                 : 'bg-dark-lighter text-gray-400 hover:bg-dark-border'
             }`}
           >
-            Expanding Circles
+            Expanding Shapes
           </button>
           <button
             onClick={() => {

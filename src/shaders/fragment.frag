@@ -20,6 +20,8 @@ uniform vec3 uBgColorSeg[MAX_SEGMENTS];
 #define TOTAL_INSTANCE_SLOTS 16
 uniform vec3 uCircleColors[TOTAL_INSTANCE_SLOTS];
 uniform float uCircleIntensities[TOTAL_INSTANCE_SLOTS];
+uniform int uCircleShapeType[TOTAL_INSTANCE_SLOTS];
+uniform float uCircleRotationSpeed[TOTAL_INSTANCE_SLOTS];
 uniform vec3 uWaveColors[TOTAL_INSTANCE_SLOTS];
 uniform float uWaveIntensities[TOTAL_INSTANCE_SLOTS];
 uniform vec3 uEpiColors[TOTAL_INSTANCE_SLOTS];
@@ -35,8 +37,12 @@ uniform float uCircleGlow[TOTAL_INSTANCE_SLOTS];
 uniform float uExpandPeriod[TOTAL_INSTANCE_SLOTS];
 uniform float uExpandThickness[TOTAL_INSTANCE_SLOTS];
 uniform float uExpandGlow[TOTAL_INSTANCE_SLOTS];
-uniform float uExpandMaxRadius[TOTAL_INSTANCE_SLOTS];
+uniform float uExpandSpeed[TOTAL_INSTANCE_SLOTS];
 uniform float uExpandStartTime[TOTAL_INSTANCE_SLOTS];
+uniform float uExpandAttack[TOTAL_INSTANCE_SLOTS];
+uniform float uExpandDecay[TOTAL_INSTANCE_SLOTS];
+uniform int uExpandShapeType[TOTAL_INSTANCE_SLOTS];
+uniform int uExpandPulseMode[TOTAL_INSTANCE_SLOTS];
 uniform float uWaveAmplitude[TOTAL_INSTANCE_SLOTS];
 uniform float uWaveFrequency[TOTAL_INSTANCE_SLOTS];
 uniform float uWaveSpeed[TOTAL_INSTANCE_SLOTS];
@@ -72,11 +78,8 @@ const float C_GLOW_SHARP = 80.0;
 
 // Cercles expansifs
 const int MAX_EXPAND_CIRCLES = 8;
-const float EXPAND_DURATION = 41.74;
-const float EXPAND_PERIOD = 41.74;
 const float EXPAND_THICKNESS = 0.0001;
 const float EXPAND_GLOW = 3.5;
-const float EXPAND_MAX_RADIUS = 1.5;
 
 // Vagues
 const int MAX_WAVE_LAYERS = 8;
@@ -113,11 +116,70 @@ float softBand(float d, float halfW) {
     return 1.0 - smoothstep(halfW, halfW + aa, d);
 }
 
+float sdSquare(vec2 p, float halfExtent) {
+    vec2 d = abs(p) - vec2(halfExtent);
+    return length(max(d, 0.0)) + min(max(d.x, d.y), 0.0);
+}
+
+float sdEquilateralTriangle(vec2 p, float radius) {
+    float safeRadius = max(radius, 1e-5);
+    vec2 q = p / safeRadius;
+    const float k = 1.7320508;
+    q.x = abs(q.x) - 1.0;
+    q.y = q.y + 1.0 / k;
+    if (q.x + k * q.y > 0.0) {
+        q = vec2(q.x - k * q.y, -k * q.x - q.y) / 2.0;
+    }
+    q.x -= clamp(q.x, -2.0, 0.0);
+    float dist = -length(q) * sign(q.y);
+    return dist * safeRadius;
+}
+
+float sdHeart(vec2 p, float radius) {
+    float safeRadius = max(radius, 1e-5);
+    vec2 q = p / safeRadius;
+    q.y -= 0.25;
+    float a = atan(q.x, q.y) / 3.14159265;
+    float h = length(q);
+    float dist = h - (0.5 + 0.3 * (1.0 - q.y) + 0.2 * cos(3.14159265 * a));
+    return dist * safeRadius;
+}
+
+float shapeRadiusScale(int shapeType) {
+    if (shapeType == 1) return 0.70710678; // square
+    if (shapeType == 2) return 0.8660254; // triangle
+    if (shapeType == 3) return 0.9; // heart
+    return 1.0;
+}
+
+float shapeDistance(int shapeType, vec2 p, float radius) {
+    if (shapeType == 1) {
+        return sdSquare(p, radius);
+    }
+    if (shapeType == 2) {
+        return sdEquilateralTriangle(p, radius);
+    }
+    if (shapeType == 3) {
+        return sdHeart(p, radius);
+    }
+    return length(p) - radius;
+}
+
+vec2 rotate2D(vec2 p, float angle) {
+    float s = sin(angle);
+    float c = cos(angle);
+    return vec2(c * p.x - s * p.y, s * p.x + c * p.y);
+}
+
 // ---------- PER-INSTANCE DATA ACCESSORS ----------
 // segmentType: 0 = previous, 1 = current
 int getInstanceIndex(int segmentType, int instanceIdx) {
     int offset = segmentType * MAX_INSTANCES; // 0 for prev, 8 for current
     return offset + clamp(instanceIdx, 0, MAX_INSTANCES - 1);
+}
+
+int selectDiscrete(int prevValue, int currValue, float blendFactor) {
+    return blendFactor < 0.5 ? prevValue : currValue;
 }
 
 // Circle accessors
@@ -126,6 +188,9 @@ vec3 getCircleColor(int segType, int instIdx) {
 }
 float getCircleIntensity(int segType, int instIdx) {
     return uCircleIntensities[getInstanceIndex(segType, instIdx)];
+}
+int getCircleShape(int segType, int instIdx) {
+    return uCircleShapeType[getInstanceIndex(segType, instIdx)];
 }
 
 // Wave accessors
@@ -153,6 +218,21 @@ float getExpandIntensity(int segType, int instIdx) {
 }
 float getExpandStartRadius(int segType, int instIdx) {
     return uExpandStartRadius[getInstanceIndex(segType, instIdx)];
+}
+float getExpandStartTime(int segType, int instIdx) {
+    return uExpandStartTime[getInstanceIndex(segType, instIdx)];
+}
+float getExpandAttack(int segType, int instIdx) {
+    return uExpandAttack[getInstanceIndex(segType, instIdx)];
+}
+float getExpandDecay(int segType, int instIdx) {
+    return uExpandDecay[getInstanceIndex(segType, instIdx)];
+}
+int getExpandShapeType(int segType, int instIdx) {
+    return uExpandShapeType[getInstanceIndex(segType, instIdx)];
+}
+int getExpandPulseMode(int segType, int instIdx) {
+    return uExpandPulseMode[getInstanceIndex(segType, instIdx)];
 }
 
 // ---------- TIMELINE ----------
@@ -241,13 +321,6 @@ SegData getSegment(float t) {
 }
 
 // ---------- FORMES ----------
-float circleLine(vec2 p, float r, float th, float g, float sharp) {
-    float d = abs(length(p) - r);
-    float l = softBand(d, th);
-    float glow = g * exp(-d * sharp);
-    return clamp(l + glow, 0.0, 1.0);
-}
-
 vec3 renderCircles(vec2 p, float t, float numCirclesFloat, float blendFactor) {
     int maxCircles = int(ceil(numCirclesFloat));
     maxCircles = clamp(maxCircles, 0, MAX_CIRCLES);
@@ -262,6 +335,7 @@ vec3 renderCircles(vec2 p, float t, float numCirclesFloat, float blendFactor) {
 
         vec3 colorCurr = getCircleColor(1, i);
         float intensityCurr = getCircleIntensity(1, i);
+        int shapeCurr = getCircleShape(1, i);
 
         vec3 finalColor = colorCurr;
         float finalIntensity = intensityCurr;
@@ -269,8 +343,10 @@ vec3 renderCircles(vec2 p, float t, float numCirclesFloat, float blendFactor) {
         if (blendFactor < 1.0) {
             vec3 colorPrev = getCircleColor(0, i);
             float intensityPrev = getCircleIntensity(0, i);
+            int shapePrev = getCircleShape(0, i);
             finalColor = mix(colorPrev, colorCurr, blendFactor);
             finalIntensity = mix(intensityPrev, intensityCurr, blendFactor);
+            shapeCurr = selectDiscrete(shapePrev, shapeCurr, blendFactor);
         }
 
         if (finalIntensity <= 0.0) continue;
@@ -284,14 +360,25 @@ vec3 renderCircles(vec2 p, float t, float numCirclesFloat, float blendFactor) {
         float thicknessCurr = uCircleThickness[idxCurr];
         float glowPrev = uCircleGlow[idxPrev];
         float glowCurr = uCircleGlow[idxCurr];
+        float rotPrev = uCircleRotationSpeed[idxPrev];
+        float rotCurr = uCircleRotationSpeed[idxCurr];
 
         float finalRadius = mix(radiusPrev, radiusCurr, blendFactor);
         float finalThickness = mix(thicknessPrev, thicknessCurr, blendFactor);
         float finalGlow = mix(glowPrev, glowCurr, blendFactor);
+        float finalRotation = mix(rotPrev, rotCurr, blendFactor);
 
         float r = finalRadius * (1.0 + wob * sin(t * (0.5 + float(i) * 0.05)));
-        float m = circleLine(p, r, finalThickness, finalGlow, C_GLOW_SHARP);
-        col += m * finalColor * finalIntensity * shapeAlpha;
+        float scaledRadius = r * shapeRadiusScale(shapeCurr);
+        vec2 shapePoint = p;
+        if (shapeCurr == 1 || shapeCurr == 2) {
+            shapePoint = rotate2D(p, finalRotation * t);
+        }
+        float dist = shapeDistance(shapeCurr, shapePoint, scaledRadius);
+        float d = abs(dist);
+        float m = softBand(d, finalThickness);
+        float g = finalGlow * exp(-d * C_GLOW_SHARP);
+        col += (m + g) * finalColor * finalIntensity * shapeAlpha;
     }
     return col;
 }
@@ -309,51 +396,88 @@ vec3 renderExpandingCircles(vec2 p, float t, float numExpandFloat, float blendFa
         vec3 colorCurr = getExpandColor(1, i);
         float intensityCurr = getExpandIntensity(1, i);
         float startRadiusCurr = getExpandStartRadius(1, i);
+        float startTimeCurr = getExpandStartTime(1, i);
 
         vec3 finalColor = colorCurr;
         float finalIntensity = intensityCurr;
         float finalStartRadius = startRadiusCurr;
+        float finalStartTime = startTimeCurr;
+        float finalAttack = getExpandAttack(1, i);
+        float finalDecay = getExpandDecay(1, i);
+        int finalShapeType = getExpandShapeType(1, i);
+        int finalPulseMode = getExpandPulseMode(1, i);
 
         if (blendFactor < 1.0) {
             vec3 colorPrev = getExpandColor(0, i);
             float intensityPrev = getExpandIntensity(0, i);
-            float startRadiusPrev = getExpandStartRadius(0, i);
+            float attackPrev = getExpandAttack(0, i);
+            float decayPrev = getExpandDecay(0, i);
+            // Interpolate visual parameters only (smooth color/intensity transitions)
             finalColor = mix(colorPrev, colorCurr, blendFactor);
             finalIntensity = mix(intensityPrev, intensityCurr, blendFactor);
-            finalStartRadius = mix(startRadiusPrev, startRadiusCurr, blendFactor);
+            finalAttack = mix(attackPrev, finalAttack, blendFactor);
+            finalDecay = mix(decayPrev, finalDecay, blendFactor);
+            // Do NOT interpolate temporal parameters (prevents visual backward motion)
+            // finalStartRadius, finalStartTime, finalShapeType, finalPulseMode use current segment values
         }
 
         if (finalIntensity <= 0.0) continue;
 
-        // Use uniforms for geometric parameters (blend between prev and current segment)
+        // Use uniforms for geometric parameters
+        // For expanding circles: interpolate visual params only, NOT temporal params
         int idxPrev = i;
         int idxCurr = 8 + i;
-        float periodPrev = uExpandPeriod[idxPrev];
-        float periodCurr = uExpandPeriod[idxCurr];
         float thicknessPrev = uExpandThickness[idxPrev];
         float thicknessCurr = uExpandThickness[idxCurr];
         float glowPrev = uExpandGlow[idxPrev];
         float glowCurr = uExpandGlow[idxCurr];
-        float maxRadiusPrev = uExpandMaxRadius[idxPrev];
-        float maxRadiusCurr = uExpandMaxRadius[idxCurr];
 
-        float finalPeriod = mix(periodPrev, periodCurr, blendFactor);
+        // Interpolate visual parameters (smooth style transitions)
         float finalThickness = mix(thicknessPrev, thicknessCurr, blendFactor);
         float finalGlow = mix(glowPrev, glowCurr, blendFactor);
-        float finalMaxRadius = mix(maxRadiusPrev, maxRadiusCurr, blendFactor);
 
+        // Use current segment values for temporal parameters (prevents backward motion)
+        float finalPeriod = uExpandPeriod[idxCurr];
+        float finalExpansionSpeed = uExpandSpeed[idxCurr];
         float off = float(i) * (finalPeriod / max(1.0, numExpandFloat));
-        float tt = mod(t + off, finalPeriod);
-        if (tt < EXPAND_DURATION) {
-            float prog = tt / EXPAND_DURATION;
-            float radius = finalStartRadius + prog * (finalMaxRadius - finalStartRadius);
-            float alpha = (1.0 - prog);
-            alpha *= alpha * shapeAlpha;
-            float d = abs(length(p) - radius);
-            float l = softBand(d, finalThickness);
-            float g = finalGlow * exp(-d * 50.0);
-            col += finalColor * (l + g) * alpha * finalIntensity;
+        float cycleDuration = max(finalPeriod, 0.0001);
+        float localTime = (t - finalStartTime) + off;
+        float tt = localTime;
+        if (finalPulseMode == 0) {
+            tt = mod(localTime, cycleDuration);
+            if (tt < 0.0) {
+                tt += cycleDuration;
+            }
+        } else {
+            if (tt < 0.0 || tt > cycleDuration + finalDecay) {
+                continue;
+            }
         }
+        if (tt < 0.0) {
+            continue;
+        }
+        // Calculate radius based on expansion speed (units per second)
+        float radius = finalStartRadius + finalExpansionSpeed * tt;
+        // Optimization: skip rendering if shape is completely off-screen
+        if (radius > 2.0) {
+            continue;
+        }
+        float prog = clamp(tt / cycleDuration, 0.0, 1.0); // Still used for alpha fade
+        float scaledRadius = radius * shapeRadiusScale(finalShapeType);
+        float attackTime = max(0.001, finalAttack);
+        float decayTime = max(0.001, finalDecay);
+        float decayStart = max(0.0, cycleDuration - decayTime);
+        float envelope = smoothstep(0.0, attackTime, tt) * (1.0 - smoothstep(decayStart, decayStart + decayTime, tt));
+        float alpha = (1.0 - prog);
+        alpha *= alpha * shapeAlpha * clamp(envelope, 0.0, 1.0);
+        if (alpha <= 0.0) {
+            continue;
+        }
+        float dist = shapeDistance(finalShapeType, p, scaledRadius);
+        float d = abs(dist);
+        float l = softBand(d, finalThickness);
+        float g = finalGlow * exp(-d * 50.0);
+        col += finalColor * (l + g) * alpha * finalIntensity;
     }
     return col;
 }

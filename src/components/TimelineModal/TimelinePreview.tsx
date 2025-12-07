@@ -7,6 +7,7 @@ import { useMemo } from 'react';
 import * as THREE from 'three';
 import ThreeScene from '../ThreeScene';
 import type { SegmentConfig } from '../../types/config';
+import { ShapeBadge } from './ShapeBadge';
 
 interface TimelinePreviewProps {
   currentTime: number;
@@ -71,6 +72,9 @@ export function TimelinePreview({
 
   const currentSegmentInfo = getCurrentSegment();
   const selectedSegment = segments[selectedSegmentIndex];
+  const previewSegment = selectedSegment ?? currentSegmentInfo?.segment ?? null;
+  const previewExpanding =
+    previewSegment?.shapeInstances?.expandingCircles?.filter((inst) => inst.enabled) ?? [];
 
   return (
     <div className="relative h-full bg-black rounded-lg border-2 border-dark-border overflow-hidden">
@@ -113,6 +117,26 @@ export function TimelinePreview({
             </div>
           )}
         </div>
+        {previewExpanding.length > 0 && (
+          <div className="mt-3 border-t border-white/10 pt-3">
+            <span className="block text-xs uppercase tracking-wide text-gray-400 mb-2">
+              Expanding Shapes ({previewExpanding.length})
+            </span>
+            <div className="flex flex-wrap gap-3">
+              {previewExpanding.map((inst, idx) => {
+                const shapeName = inst.shape.charAt(0).toUpperCase() + inst.shape.slice(1);
+                return (
+                <ShapeBadge
+                  key={inst.id}
+                  shape={inst.shape}
+                  pulseMode={inst.pulseMode}
+                  size="md"
+                  label={`#${idx + 1} · ${shapeName}`}
+                />
+              );})}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

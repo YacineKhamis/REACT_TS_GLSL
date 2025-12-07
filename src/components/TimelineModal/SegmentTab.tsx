@@ -1,10 +1,11 @@
 /**
  * SegmentTab component for editing per-segment parameters.
- * Allows editing: background color, tint, shape counts, and transition duration.
+ * Allows editing: background color, tint, shape counts, transition duration, and transition profile.
  * Displays read-only information: duration, start time, end time.
  */
 
-import type { UniformVec3, ShapeLimits, AudioTrackInfo } from '../../types/config';
+import { useState } from 'react';
+import type { UniformVec3, ShapeLimits, AudioTrackInfo, TransitionProfile } from '../../types/config';
 import { SliderField } from '../FormFields/SliderField';
 import { getSliderConfig } from '../../constants/sliderDefaults';
 
@@ -30,6 +31,8 @@ interface SegmentTabProps {
   }) => void;
   transitionDuration: number;
   onTransitionDurationChange: (duration: number) => void;
+  transitionProfile?: TransitionProfile;
+  onTransitionProfileChange: (profile: TransitionProfile | undefined) => void;
   maxShapeLimits: ShapeLimits;
   audioTrack?: AudioTrackInfo;
   lockToAudioDuration: boolean;
@@ -48,11 +51,14 @@ export function SegmentTab({
   onShapeCountsChange,
   transitionDuration,
   onTransitionDurationChange,
+  transitionProfile,
+  onTransitionProfileChange,
   maxShapeLimits,
   audioTrack,
   lockToAudioDuration,
   totalDuration,
 }: SegmentTabProps) {
+  const [isAdvancedTransitionOpen, setIsAdvancedTransitionOpen] = useState(false);
   const rgbToHex = (rgb: UniformVec3): string => {
     const r = Math.round(rgb[0] * 255).toString(16).padStart(2, '0');
     const g = Math.round(rgb[1] * 255).toString(16).padStart(2, '0');
@@ -190,6 +196,97 @@ export function SegmentTab({
         />
       </div>
 
+      {/* Advanced Transition Settings - Collapsible */}
+      <div className="border border-dark-border rounded-lg overflow-hidden">
+        <button
+          onClick={() => setIsAdvancedTransitionOpen(!isAdvancedTransitionOpen)}
+          className="w-full flex items-center justify-between p-3 bg-dark-lighter hover:bg-dark-border transition-colors"
+        >
+          <span className="text-sm font-medium text-white">Advanced Transition Settings</span>
+          <svg
+            className={`w-5 h-5 text-gray-400 transition-transform ${isAdvancedTransitionOpen ? 'rotate-180' : ''}`}
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+
+        {isAdvancedTransitionOpen && (
+          <div className="p-4 space-y-4 bg-dark-lighter/50">
+            <p className="text-xs text-gray-400">
+              Fine-tune how shape parameters transition between segments. These settings reduce visual artifacts for epicycloids.
+            </p>
+
+            {/* Easing Function */}
+            <div>
+              <label htmlFor="easing" className="block text-sm font-medium text-white mb-2">
+                Easing Function
+              </label>
+              <select
+                id="easing"
+                value={transitionProfile?.easing || 'easeInOut'}
+                onChange={(e) => {
+                  const newProfile: TransitionProfile = {
+                    easing: e.target.value as 'linear' | 'easeInOut' | 'slowEase',
+                    paramClamp: transitionProfile?.paramClamp ?? 0.35,
+                    enforceOrder: transitionProfile?.enforceOrder ?? false,
+                  };
+                  onTransitionProfileChange(newProfile);
+                }}
+                className="w-full px-3 py-2 bg-dark-lighter border border-dark-border rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+              >
+                <option value="linear">Linear (no easing)</option>
+                <option value="easeInOut">Ease In-Out (smoothstep)</option>
+                <option value="slowEase">Slow Ease (smootherstep)</option>
+              </select>
+              <p className="text-xs text-gray-500 mt-1">
+                {transitionProfile?.easing === 'linear' && 'Constant speed transition'}
+                {transitionProfile?.easing === 'easeInOut' && 'Smooth acceleration and deceleration'}
+                {(!transitionProfile?.easing || transitionProfile?.easing === 'easeInOut') && !transitionProfile && 'Smooth acceleration and deceleration (default)'}
+                {transitionProfile?.easing === 'slowEase' && 'Very smooth, gradual transition'}
+              </p>
+            </div>
+
+            {/* Parameter Clamp */}
+            <div>
+              <label htmlFor="paramClamp" className="block text-sm font-medium text-white mb-2">
+                Parameter Clamp Factor
+              </label>
+              <input
+                id="paramClamp"
+                type="number"
+                min="0.01"
+                max="2.0"
+                step="0.05"
+                value={transitionProfile?.paramClamp ?? 0.35}
+                onChange={(e) => {
+                  const newProfile: TransitionProfile = {
+                    easing: transitionProfile?.easing || 'easeInOut',
+                    paramClamp: parseFloat(e.target.value) || 0.35,
+                    enforceOrder: transitionProfile?.enforceOrder ?? false,
+                  };
+                  onTransitionProfileChange(newProfile);
+                }}
+                className="w-full px-3 py-2 bg-dark-lighter border border-dark-border rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Maximum parameter change per second (as fraction of transition duration). Lower = smoother but slower. Default: 0.35
+              </p>
+            </div>
+
+            {/* Reset to defaults */}
+            <button
+              onClick={() => onTransitionProfileChange(undefined)}
+              className="text-sm text-primary hover:text-primary/80 transition-colors"
+            >
+              Reset to defaults
+            </button>
+          </div>
+        )}
+      </div>
+
       {/* Shape Counts */}
       <div>
         <h4 className="text-sm font-medium text-white mb-3">Shape Instance Counts</h4>
@@ -198,20 +295,20 @@ export function SegmentTab({
         </p>
 
         <div className="space-y-4">
-          {/* Fixed Circles */}
+          {/* Fixed Shapes */}
           {getSliderConfig('shapeCounts', 'circles') && (
             <SliderField
-              label={`Fixed Circles (max: ${maxShapeLimits.circles})`}
+              label={`Fixed Shapes (max: ${maxShapeLimits.circles})`}
               value={shapeCounts.circles}
               onChange={(value) => onShapeCountsChange({ ...shapeCounts, circles: Math.round(value) })}
               config={{ ...getSliderConfig('shapeCounts', 'circles')!, max: maxShapeLimits.circles }}
             />
           )}
 
-          {/* Expanding Circles */}
+          {/* Expanding Shapes */}
           {getSliderConfig('shapeCounts', 'expandingCircles') && (
             <SliderField
-              label={`Expanding Circles (max: ${maxShapeLimits.expandingCircles})`}
+              label={`Expanding Shapes (max: ${maxShapeLimits.expandingCircles})`}
               value={shapeCounts.expandingCircles}
               onChange={(value) => onShapeCountsChange({ ...shapeCounts, expandingCircles: Math.round(value) })}
               config={{ ...getSliderConfig('shapeCounts', 'expandingCircles')!, max: maxShapeLimits.expandingCircles }}

@@ -15,6 +15,8 @@ export interface CircleInstance extends ShapeInstanceBase {
   radius: number; // Override C_R[i]
   thickness: number; // Override C_THICK[i]
   glow: number; // Override C_GLOW[i]
+  shape: 'circle' | 'square' | 'triangle' | 'heart'; // Outline type
+  rotationSpeed: number; // Rotation speed for non-circular outlines
   intensity: number; // Individual instance intensity (0-1), replaces master circlesIntensity
   color: [number, number, number]; // RGB normalized [0-1], per-instance color
 }
@@ -22,14 +24,18 @@ export interface CircleInstance extends ShapeInstanceBase {
 // Expanding circle instance (animated outward)
 export interface ExpandingCircleInstance extends ShapeInstanceBase {
   type: 'expandingCircle';
-  startRadius: number; // Starting radius (NEW - circles begin expanding from this radius)
-  period: number; // Override EXPAND_PERIOD
-  thickness: number; // Override EXPAND_THICKNESS
-  glow: number; // Override EXPAND_GLOW
-  maxRadius: number; // Override EXPAND_MAX_RADIUS
+  startRadius: number; // Starting radius (circles begin expanding from this radius)
+  period: number; // Duration of one expansion cycle in seconds
+  thickness: number; // Line thickness
+  glow: number; // Glow intensity
+  expansionSpeed: number; // Expansion speed in units per second (replaces maxRadius)
   startTime: number; // Offset within segment (seconds)
   intensity: number; // Individual instance intensity (0-1), replaces master expandingCirclesIntensity
   color: [number, number, number]; // RGB normalized [0-1], per-instance color
+  shape: 'circle' | 'square' | 'triangle' | 'heart'; // Shape type for expanding outline
+  pulseMode: 'loop' | 'single'; // Loop: repeat pulses, Single: pulse once then stop
+  attack: number; // Seconds to reach full intensity (fade in)
+  decay: number; // Seconds to fade out to zero intensity
 }
 
 // Wave instance (animated sine wave)

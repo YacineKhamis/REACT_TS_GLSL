@@ -14,16 +14,22 @@ export const CIRCLE_DEFAULTS = {
   radius: [0.01, 0.06, 0.06, 0.45, 0.44, 0.16, 0.9, 0.95],
   thickness: [0.0005, 0.0006, 0.0005, 0.0005, 0.0005, 0.0002, 0.0004, 0.0009],
   glow: [1.5, 0.85, 0.1, 1.3, 0.2, 0.9, 0.6, 1.7],
+  shape: 'circle' as const,
+  rotationSpeed: 0,
 };
 
 // Expanding Circle defaults (from EXPAND_* constants)
 export const EXPANDING_CIRCLE_DEFAULTS = {
-  startRadius: 0, // NEW: Starting radius (circles expand from this radius)
-  period: 41.74,
+  startRadius: 0, // Starting radius (circles expand from this radius)
+  period: 10.0, // Duration of one expansion cycle (seconds) - simplified from 41.74
   thickness: 0.0001,
   glow: 3.5,
-  maxRadius: 1.5,
+  expansionSpeed: 0.15, // Expansion speed in units/second (replaces maxRadius)
   startTime: 0, // Offset within segment
+  shape: 'circle' as const, // Default shape type
+  pulseMode: 'loop' as const, // Default: repeat pulses
+  attack: 0.1, // Default fade-in time (seconds)
+  decay: 0.5, // Default fade-out time (seconds)
 };
 
 // Wave defaults (from W_AMP, W_FREQ, W_SPEED, W_THICK, W_GLOW arrays)
@@ -55,6 +61,8 @@ export function getCircleDefaults(index: number) {
     radius: CIRCLE_DEFAULTS.radius[i],
     thickness: CIRCLE_DEFAULTS.thickness[i],
     glow: CIRCLE_DEFAULTS.glow[i],
+    shape: CIRCLE_DEFAULTS.shape,
+    rotationSpeed: CIRCLE_DEFAULTS.rotationSpeed,
     intensity: 0.5, // NEW: Default intensity (0-1)
     color: [1, 1, 1] as [number, number, number], // White by default
   };
@@ -69,10 +77,14 @@ export function getExpandingCircleDefaults() {
     period: EXPANDING_CIRCLE_DEFAULTS.period,
     thickness: EXPANDING_CIRCLE_DEFAULTS.thickness,
     glow: EXPANDING_CIRCLE_DEFAULTS.glow,
-    maxRadius: EXPANDING_CIRCLE_DEFAULTS.maxRadius,
+    expansionSpeed: EXPANDING_CIRCLE_DEFAULTS.expansionSpeed,
     startTime: EXPANDING_CIRCLE_DEFAULTS.startTime,
-    intensity: 0.5, // NEW: Default intensity (0-1)
+    intensity: 0.5, // Default intensity (0-1)
     color: [1, 0.647, 0] as [number, number, number], // Orange by default
+    shape: EXPANDING_CIRCLE_DEFAULTS.shape,
+    pulseMode: EXPANDING_CIRCLE_DEFAULTS.pulseMode,
+    attack: EXPANDING_CIRCLE_DEFAULTS.attack,
+    decay: EXPANDING_CIRCLE_DEFAULTS.decay,
   };
 }
 

@@ -12,6 +12,7 @@ import { useAppNavigation } from './hooks/useAppNavigation';
 import { useAudioTrackLoader } from './hooks/useAudioTrack';
 import { useAudioPlayer } from './hooks/useAudioPlayer';
 import { useVideoExport } from './hooks/useVideoExport';
+import { useShapeTransitions } from './hooks/useShapeTransitions';
 import { extractAudioTrackFromElement } from './utils/export/audioHelpers';
 import type { ExportSettings } from './types/export';
 import { MAX_SEGMENTS, MAX_INSTANCES, TOTAL_INSTANCE_SLOTS, LOOP_DETECTION_THRESHOLD } from './constants/rendering';
@@ -32,6 +33,7 @@ export default function App() {
     updateProjectName,
     updateMaxShapeLimits,
     updateSegmentTransition,
+    updateSegmentTransitionProfile,
     updateSegmentBackground,
     updateSegmentTint,
     updateSegmentShapeInstances,
@@ -155,6 +157,13 @@ export default function App() {
     return config.segments.length > 0 ? config.segments.length - 1 : 0;
   }, [config.segments, currentTime]);
 
+  // Apply smooth shape transitions with parameter clamping (especially for epicycloids)
+  const smoothedSegmentState = useShapeTransitions(
+    config.segments,
+    currentTime,
+    currentSegmentIndex
+  );
+
   // NEW: Generate shader uniforms from per-instance data
   // Only sends current + previous segment data (16 slots total: 0-7 prev, 8-15 current)
   // OPTIMIZED: Only recalculates when segment changes or config changes, NOT on every frame
@@ -208,6 +217,8 @@ export default function App() {
     // Colors and intensities
     const circleColors: THREE.Color[] = new Array(TOTAL_INSTANCE_SLOTS);
     const circleIntensities = new Float32Array(TOTAL_INSTANCE_SLOTS);
+    const circleShapeType = new Int32Array(TOTAL_INSTANCE_SLOTS);
+    const circleRotationSpeed = new Float32Array(TOTAL_INSTANCE_SLOTS);
     const waveColors: THREE.Color[] = new Array(TOTAL_INSTANCE_SLOTS);
     const waveIntensities = new Float32Array(TOTAL_INSTANCE_SLOTS);
     const epiColors: THREE.Color[] = new Array(TOTAL_INSTANCE_SLOTS);
@@ -225,8 +236,12 @@ export default function App() {
     const expandPeriod = new Float32Array(TOTAL_INSTANCE_SLOTS);
     const expandThickness = new Float32Array(TOTAL_INSTANCE_SLOTS);
     const expandGlow = new Float32Array(TOTAL_INSTANCE_SLOTS);
-    const expandMaxRadius = new Float32Array(TOTAL_INSTANCE_SLOTS);
+    const expandSpeed = new Float32Array(TOTAL_INSTANCE_SLOTS);
     const expandStartTime = new Float32Array(TOTAL_INSTANCE_SLOTS);
+    const expandAttack = new Float32Array(TOTAL_INSTANCE_SLOTS);
+    const expandDecay = new Float32Array(TOTAL_INSTANCE_SLOTS);
+    const expandShapeType = new Int32Array(TOTAL_INSTANCE_SLOTS);
+    const expandPulseMode = new Int32Array(TOTAL_INSTANCE_SLOTS);
 
     // Geometric parameters for waves
     const waveAmplitude = new Float32Array(TOTAL_INSTANCE_SLOTS);
@@ -254,6 +269,7 @@ export default function App() {
       if (!seg || !seg.shapeInstances) return;
 
       const instances = seg.shapeInstances;
+      const segStartTime = seg.startSec ?? 0;
 
       for (let i = 0; i < MAX_INSTANCES; i++) {
         const idx = offset + i;
@@ -266,12 +282,28 @@ export default function App() {
           circleRadius[idx] = circle.radius;
           circleThickness[idx] = circle.thickness;
           circleGlow[idx] = circle.glow;
+          switch (circle.shape) {
+            case 'square':
+              circleShapeType[idx] = 1;
+              break;
+            case 'triangle':
+              circleShapeType[idx] = 2;
+              break;
+            case 'heart':
+              circleShapeType[idx] = 3;
+              break;
+            default:
+              circleShapeType[idx] = 0;
+          }
+          circleRotationSpeed[idx] = circle.rotationSpeed ?? 0;
         } else {
           circleColors[idx] = new THREE.Color(1, 1, 1);
           circleIntensities[idx] = 0;
           circleRadius[idx] = 0.5;
           circleThickness[idx] = 0.0005;
           circleGlow[idx] = 1.0;
+          circleShapeType[idx] = 0;
+          circleRotationSpeed[idx] = 0;
         }
 
         // Waves
@@ -327,29 +359,183 @@ export default function App() {
           expandPeriod[idx] = expand.period;
           expandThickness[idx] = expand.thickness;
           expandGlow[idx] = expand.glow;
-          expandMaxRadius[idx] = expand.maxRadius;
-          expandStartTime[idx] = expand.startTime;
+          expandSpeed[idx] = expand.expansionSpeed;
+          expandStartTime[idx] = segStartTime + expand.startTime;
+          expandAttack[idx] = expand.attack;
+          expandDecay[idx] = expand.decay;
+          switch (expand.shape) {
+            case 'square':
+              expandShapeType[idx] = 1;
+              break;
+            case 'triangle':
+              expandShapeType[idx] = 2;
+              break;
+            case 'heart':
+              expandShapeType[idx] = 3;
+              break;
+            default:
+              expandShapeType[idx] = 0;
+          }
+          expandPulseMode[idx] = expand.pulseMode === 'single' ? 1 : 0;
         } else {
           expandColors[idx] = new THREE.Color(1, 0.647, 0);
           expandIntensities[idx] = 0;
           expandStartRadius[idx] = 0;
-          expandPeriod[idx] = 41.74;
+          expandPeriod[idx] = 10.0;
           expandThickness[idx] = 0.0001;
           expandGlow[idx] = 3.5;
-          expandMaxRadius[idx] = 1.5;
-          expandStartTime[idx] = 0;
+          expandSpeed[idx] = 0.15;
+          expandStartTime[idx] = segStartTime;
+          expandAttack[idx] = 0.1;
+          expandDecay[idx] = 0.5;
+          expandShapeType[idx] = 0;
+          expandPulseMode[idx] = 0;
         }
       }
     };
 
     // Fill previous segment (offset 0)
     fillSegmentInstances(prevSegIdx, 0);
-    // Fill current segment (offset 8)
-    fillSegmentInstances(currentSegIdx, MAX_INSTANCES);
+
+    // Fill current segment (offset 8) with smoothed data if available
+    if (smoothedSegmentState) {
+      // Use smoothed shape instances instead of raw data
+      const instances = smoothedSegmentState.shapeInstances;
+      const smoothedSegment = smoothedSegmentState.segment;
+      const smoothedSegmentStart = smoothedSegment.startSec ?? 0;
+      const offset = MAX_INSTANCES;
+
+      for (let i = 0; i < MAX_INSTANCES; i++) {
+        const idx = offset + i;
+
+        // Circles (no smoothing applied yet, can be added if needed)
+        if (i < instances.circles.length) {
+          const circle = instances.circles[i];
+          circleColors[idx] = new THREE.Color(circle.color[0], circle.color[1], circle.color[2]);
+          circleIntensities[idx] = circle.enabled ? circle.intensity : 0;
+          circleRadius[idx] = circle.radius;
+          circleThickness[idx] = circle.thickness;
+          circleGlow[idx] = circle.glow;
+          switch (circle.shape) {
+            case 'square':
+              circleShapeType[idx] = 1;
+              break;
+            case 'triangle':
+              circleShapeType[idx] = 2;
+              break;
+            case 'heart':
+              circleShapeType[idx] = 3;
+              break;
+            default:
+              circleShapeType[idx] = 0;
+          }
+          circleRotationSpeed[idx] = circle.rotationSpeed ?? 0;
+        } else {
+          circleColors[idx] = new THREE.Color(1, 1, 1);
+          circleIntensities[idx] = 0;
+          circleRadius[idx] = 0.5;
+          circleThickness[idx] = 0.0005;
+          circleGlow[idx] = 1.0;
+          circleShapeType[idx] = 0;
+          circleRotationSpeed[idx] = 0;
+        }
+
+        // Waves (no smoothing applied yet)
+        if (i < instances.waves.length) {
+          const wave = instances.waves[i];
+          waveColors[idx] = new THREE.Color(wave.color[0], wave.color[1], wave.color[2]);
+          waveIntensities[idx] = wave.enabled ? wave.intensity : 0;
+          waveAmplitude[idx] = wave.amplitude;
+          waveFrequency[idx] = wave.frequency;
+          waveSpeed[idx] = wave.speed;
+          waveThickness[idx] = wave.thickness;
+          waveGlow[idx] = wave.glow;
+        } else {
+          waveColors[idx] = new THREE.Color(1, 1, 1);
+          waveIntensities[idx] = 0;
+          waveAmplitude[idx] = 0.3;
+          waveFrequency[idx] = 0.5;
+          waveSpeed[idx] = 0.2;
+          waveThickness[idx] = 0.003;
+          waveGlow[idx] = 1.0;
+        }
+
+        // Epicycloids (SMOOTHED with clamping!)
+        if (i < instances.epicycloids.length) {
+          const epi = instances.epicycloids[i];
+          epiColors[idx] = new THREE.Color(epi.color[0], epi.color[1], epi.color[2]);
+          epiIntensities[idx] = epi.enabled ? epi.intensity : 0;
+          epiR[idx] = epi.R;
+          epir[idx] = epi.r;
+          epiScale[idx] = epi.scale;
+          epiThickness[idx] = epi.thickness;
+          epiSpeed[idx] = epi.speed;
+          epiGlow[idx] = epi.glow;
+          epiSamples[idx] = epi.samples;
+        } else {
+          epiColors[idx] = new THREE.Color(1, 1, 1);
+          epiIntensities[idx] = 0;
+          epiR[idx] = 7.19;
+          epir[idx] = -3.03;
+          epiScale[idx] = 0.0075;
+          epiThickness[idx] = 0.0005;
+          epiSpeed[idx] = 0.09;
+          epiGlow[idx] = 0.25;
+          epiSamples[idx] = 100;
+        }
+
+        // Expanding circles (no smoothing applied yet)
+        if (i < instances.expandingCircles.length) {
+          const expand = instances.expandingCircles[i];
+          expandColors[idx] = new THREE.Color(expand.color[0], expand.color[1], expand.color[2]);
+          expandIntensities[idx] = expand.enabled ? expand.intensity : 0;
+          expandStartRadius[idx] = expand.startRadius;
+          expandPeriod[idx] = expand.period;
+          expandThickness[idx] = expand.thickness;
+          expandGlow[idx] = expand.glow;
+          expandSpeed[idx] = expand.expansionSpeed;
+          expandStartTime[idx] = smoothedSegmentStart + expand.startTime;
+          expandAttack[idx] = expand.attack;
+          expandDecay[idx] = expand.decay;
+          switch (expand.shape) {
+            case 'square':
+              expandShapeType[idx] = 1;
+              break;
+            case 'triangle':
+              expandShapeType[idx] = 2;
+              break;
+            case 'heart':
+              expandShapeType[idx] = 3;
+              break;
+            default:
+              expandShapeType[idx] = 0;
+          }
+          expandPulseMode[idx] = expand.pulseMode === 'single' ? 1 : 0;
+        } else {
+          expandColors[idx] = new THREE.Color(1, 0.647, 0);
+          expandIntensities[idx] = 0;
+          expandStartRadius[idx] = 0;
+          expandPeriod[idx] = 10.0;
+          expandThickness[idx] = 0.0001;
+          expandGlow[idx] = 3.5;
+          expandSpeed[idx] = 0.15;
+          expandStartTime[idx] = smoothedSegmentStart;
+          expandAttack[idx] = 0.1;
+          expandDecay[idx] = 0.5;
+          expandShapeType[idx] = 0;
+          expandPulseMode[idx] = 0;
+        }
+      }
+    } else {
+      // Fallback: use raw current segment data
+      fillSegmentInstances(currentSegIdx, MAX_INSTANCES);
+    }
 
     // Set per-instance uniforms - colors and intensities
     uniforms.uCircleColors = { value: circleColors };
     uniforms.uCircleIntensities = { value: circleIntensities };
+    uniforms.uCircleShapeType = { value: circleShapeType };
+    uniforms.uCircleRotationSpeed = { value: circleRotationSpeed };
     uniforms.uWaveColors = { value: waveColors };
     uniforms.uWaveIntensities = { value: waveIntensities };
     uniforms.uEpiColors = { value: epiColors };
@@ -368,8 +554,12 @@ export default function App() {
     uniforms.uExpandPeriod = { value: expandPeriod };
     uniforms.uExpandThickness = { value: expandThickness };
     uniforms.uExpandGlow = { value: expandGlow };
-    uniforms.uExpandMaxRadius = { value: expandMaxRadius };
+    uniforms.uExpandSpeed = { value: expandSpeed };
     uniforms.uExpandStartTime = { value: expandStartTime };
+    uniforms.uExpandAttack = { value: expandAttack };
+    uniforms.uExpandDecay = { value: expandDecay };
+    uniforms.uExpandShapeType = { value: expandShapeType };
+    uniforms.uExpandPulseMode = { value: expandPulseMode };
 
     // Waves
     uniforms.uWaveAmplitude = { value: waveAmplitude };
@@ -388,7 +578,7 @@ export default function App() {
     uniforms.uEpiSamples = { value: epiSamples };
 
     return uniforms;
-  }, [config.segments, config.uniforms.epicycloidsSampleFactor, currentSegmentIndex]);
+  }, [config.segments, config.uniforms.epicycloidsSampleFactor, currentSegmentIndex, smoothedSegmentState]);
 
   const handleAudioTrackSelect = useCallback(
     async (file: File) => {
@@ -601,6 +791,7 @@ export default function App() {
         onUpdateSegmentBackground={updateSegmentBackground}
         onUpdateSegmentTint={updateSegmentTint}
         onUpdateSegmentTransition={updateSegmentTransition}
+        onUpdateSegmentTransitionProfile={updateSegmentTransitionProfile}
         onUpdateSegmentShapeInstances={updateSegmentShapeInstances}
         currentTime={currentTime}
         isPlaying={isPlaying}

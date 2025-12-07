@@ -20,6 +20,8 @@ const circleInstanceSchema = z.object({
   radius: z.number(),
   thickness: z.number(),
   glow: z.number(),
+  shape: z.enum(['circle', 'square', 'triangle', 'heart']),
+  rotationSpeed: z.number(),
   intensity: z.number(),
   color: uniformVec3Schema,
 });
@@ -32,8 +34,12 @@ const expandingCircleInstanceSchema = z.object({
   period: z.number(),
   thickness: z.number(),
   glow: z.number(),
-  maxRadius: z.number(),
+  expansionSpeed: z.number(),
   startTime: z.number(),
+  shape: z.enum(['circle', 'square', 'triangle', 'heart']),
+  pulseMode: z.enum(['loop', 'single']),
+  attack: z.number(),
+  decay: z.number(),
   intensity: z.number(),
   color: uniformVec3Schema,
 });
@@ -81,6 +87,12 @@ const uniformSetSchema = z.object({
 });
 
 // Segment schema (v2). uniformsOverride removed - now uses shapeInstances only.
+const transitionProfileSchema = z.object({
+  easing: z.enum(['linear', 'easeInOut', 'slowEase']),
+  paramClamp: z.number().optional(),
+  enforceOrder: z.boolean().optional(),
+});
+
 const segmentConfigSchema = z.object({
   id: z.string(),
   label: z.string(),
@@ -88,6 +100,7 @@ const segmentConfigSchema = z.object({
   startSec: z.number().nonnegative(),
   endSec: z.number().nonnegative(),
   transitionDuration: z.number().nonnegative(),
+  transitionProfile: transitionProfileSchema.optional(),
   backgroundColor: uniformVec3Schema,
   tint: uniformVec3Schema.optional(),
   shapeInstances: shapeInstanceCollectionSchema,

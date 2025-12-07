@@ -5,6 +5,7 @@
 
 import type { ProjectConfig, SegmentConfig, ShapeLimits } from '../types/config';
 import { shapeCountsToInstances } from './instanceToUniforms';
+import { EXPANDING_CIRCLE_DEFAULTS } from '../constants/shapeDefaults';
 
 /** Current migration version */
 const MIGRATION_VERSION = 2;
@@ -89,6 +90,14 @@ function migrateSegment(
     seg.transitionDuration = 1.0;
   }
 
+  // Ensure transition profile defaults
+  if (!seg.transitionProfile) {
+    seg.transitionProfile = {
+      easing: 'easeInOut',
+      paramClamp: 0.35,
+    };
+  }
+
   // Add backgroundColor (prefer segment override, fallback to project)
   if (!seg.backgroundColor) {
     const override = seg.uniformsOverride as Record<string, unknown> | undefined;
@@ -152,6 +161,12 @@ function migrateSegment(
           baseColor[2] * oldTints.circles[2],
         ];
       }
+      if (circle.shape === undefined) {
+        circle.shape = 'circle';
+      }
+      if (circle.rotationSpeed === undefined) {
+        circle.rotationSpeed = 0;
+      }
     });
 
     // Apply master intensity and tint to waves
@@ -175,8 +190,63 @@ function migrateSegment(
       expand.intensity = oldIntensities.expandingCircles;
       expand.color = [1, 0.647, 0]; // Orange (default expand color from shader)
       expand.startRadius = 0; // NEW field - all expanding circles started at radius 0 in v1
+      if (expand.shape === undefined) {
+        expand.shape = EXPANDING_CIRCLE_DEFAULTS.shape;
+      }
+      if (expand.pulseMode === undefined) {
+        expand.pulseMode = EXPANDING_CIRCLE_DEFAULTS.pulseMode;
+      }
+      if (expand.attack === undefined) {
+        expand.attack = EXPANDING_CIRCLE_DEFAULTS.attack;
+      }
+      if (expand.decay === undefined) {
+        expand.decay = EXPANDING_CIRCLE_DEFAULTS.decay;
+      }
+      // Migrate maxRadius → expansionSpeed
+      if ('maxRadius' in expand && expand.maxRadius !== undefined) {
+        const oldPeriod = (expand.period as number) || 41.74;
+        const oldMaxRadius = expand.maxRadius as number;
+        expand.expansionSpeed = oldMaxRadius / oldPeriod;
+        expand.period = 10.0; // Update to new default period
+        delete expand.maxRadius;
+      } else if (expand.expansionSpeed === undefined) {
+        expand.expansionSpeed = EXPANDING_CIRCLE_DEFAULTS.expansionSpeed;
+      }
+      if (expand.period === undefined) {
+        expand.period = EXPANDING_CIRCLE_DEFAULTS.period;
+      }
     });
   }
+
+  // Ensure expanding circle defaults even if shapeInstances already existed
+  const instances = seg.shapeInstances as Record<string, Record<string, unknown>[]> | undefined;
+  instances?.expandingCircles?.forEach((expand) => {
+    if (expand.shape === undefined) {
+      expand.shape = EXPANDING_CIRCLE_DEFAULTS.shape;
+    }
+    if (expand.pulseMode === undefined) {
+      expand.pulseMode = EXPANDING_CIRCLE_DEFAULTS.pulseMode;
+    }
+    if (expand.attack === undefined) {
+      expand.attack = EXPANDING_CIRCLE_DEFAULTS.attack;
+    }
+    if (expand.decay === undefined) {
+      expand.decay = EXPANDING_CIRCLE_DEFAULTS.decay;
+    }
+    // Migrate maxRadius → expansionSpeed (for projects that already had shapeInstances)
+    if ('maxRadius' in expand && expand.maxRadius !== undefined) {
+      const oldPeriod = (expand.period as number) || 41.74;
+      const oldMaxRadius = expand.maxRadius as number;
+      expand.expansionSpeed = oldMaxRadius / oldPeriod;
+      expand.period = 10.0; // Update to new default period
+      delete expand.maxRadius;
+    } else if (expand.expansionSpeed === undefined) {
+      expand.expansionSpeed = EXPANDING_CIRCLE_DEFAULTS.expansionSpeed;
+    }
+    if (expand.period === undefined) {
+      expand.period = EXPANDING_CIRCLE_DEFAULTS.period;
+    }
+  });
 
   // Remove deprecated uniformsOverride
   delete seg.uniformsOverride;

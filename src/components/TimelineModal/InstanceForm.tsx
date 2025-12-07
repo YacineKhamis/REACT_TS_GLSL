@@ -67,10 +67,11 @@ export function InstanceForm({ instance, onUpdate }: InstanceFormProps) {
     const radiusConfig = getSliderConfig('circles', 'radius');
     const thicknessConfig = getSliderConfig('circles', 'thickness');
     const glowConfig = getSliderConfig('circles', 'glow');
+    const rotationSpeedConfig = getSliderConfig('circles', 'rotationSpeed');
 
     return (
       <div className="space-y-4">
-        <h4 className="text-lg font-bold text-white">Fixed Circle Parameters</h4>
+        <h4 className="text-lg font-bold text-white">Fixed Shape Parameters</h4>
 
         {radiusConfig && (
           <SliderField
@@ -97,6 +98,39 @@ export function InstanceForm({ instance, onUpdate }: InstanceFormProps) {
             onChange={(value) => onUpdate({ ...circle, glow: value })}
             config={glowConfig}
           />
+        )}
+
+        <div>
+          <label className="block text-sm font-medium text-white mb-2">Shape Type</label>
+          <select
+            value={circle.shape}
+            onChange={(e) =>
+              onUpdate({ ...circle, shape: e.target.value as 'circle' | 'square' | 'triangle' | 'heart' })
+            }
+            className="w-full px-3 py-2 bg-dark-lighter border border-dark-border rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+          >
+            <option value="circle">Circle</option>
+            <option value="square">Square</option>
+            <option value="triangle">Triangle</option>
+            <option value="heart">Heart</option>
+          </select>
+        </div>
+
+        {rotationSpeedConfig && (
+          <div className="space-y-1">
+            <SliderField
+              label="Rotation Speed"
+              value={circle.rotationSpeed}
+              onChange={(value) => onUpdate({ ...circle, rotationSpeed: value })}
+              config={rotationSpeedConfig}
+              disabled={circle.shape === 'circle' || circle.shape === 'heart'}
+            />
+            {(circle.shape === 'circle' || circle.shape === 'heart') && (
+              <p className="text-xs text-gray-500">
+                Rotation only affects square or triangle outlines.
+              </p>
+            )}
+          </div>
         )}
 
         {renderCommonFields()}
@@ -255,14 +289,16 @@ export function InstanceForm({ instance, onUpdate }: InstanceFormProps) {
     const expand = instance as ExpandingCircleInstance;
     const startRadiusConfig = getSliderConfig('expandingCircles', 'startRadius');
     const periodConfig = getSliderConfig('expandingCircles', 'period');
-    const maxRadiusConfig = getSliderConfig('expandingCircles', 'maxRadius');
+    const expansionSpeedConfig = getSliderConfig('expandingCircles', 'expansionSpeed');
     const thicknessConfig = getSliderConfig('expandingCircles', 'thickness');
     const glowConfig = getSliderConfig('expandingCircles', 'glow');
     const startTimeConfig = getSliderConfig('expandingCircles', 'startTime');
+    const attackConfig = getSliderConfig('expandingCircles', 'attack');
+    const decayConfig = getSliderConfig('expandingCircles', 'decay');
 
     return (
       <div className="space-y-4">
-        <h4 className="text-lg font-bold text-white">Expanding Circle Parameters</h4>
+        <h4 className="text-lg font-bold text-white">Expanding Shape Parameters</h4>
 
         {startRadiusConfig && (
           <SliderField
@@ -282,12 +318,12 @@ export function InstanceForm({ instance, onUpdate }: InstanceFormProps) {
           />
         )}
 
-        {maxRadiusConfig && (
+        {expansionSpeedConfig && (
           <SliderField
-            label="Max Radius"
-            value={expand.maxRadius}
-            onChange={(value) => onUpdate({ ...expand, maxRadius: value })}
-            config={maxRadiusConfig}
+            label="Expansion Speed"
+            value={expand.expansionSpeed}
+            onChange={(value) => onUpdate({ ...expand, expansionSpeed: value })}
+            config={expansionSpeedConfig}
           />
         )}
 
@@ -316,6 +352,57 @@ export function InstanceForm({ instance, onUpdate }: InstanceFormProps) {
             onChange={(value) => onUpdate({ ...expand, startTime: value })}
             config={startTimeConfig}
             unit="seconds"
+          />
+        )}
+
+        {/* Shape Type Selector */}
+        <div>
+          <label className="block text-sm font-medium text-white mb-2">Shape Type</label>
+          <select
+            value={expand.shape}
+            onChange={(e) => onUpdate({ ...expand, shape: e.target.value as 'circle' | 'square' | 'triangle' | 'heart' })}
+            className="w-full px-3 py-2 bg-dark-lighter border border-dark-border rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+          >
+            <option value="circle">Circle</option>
+            <option value="square">Square</option>
+            <option value="triangle">Triangle</option>
+            <option value="heart">Heart</option>
+          </select>
+        </div>
+
+        {/* Pulse Mode Selector */}
+        <div>
+          <label className="block text-sm font-medium text-white mb-2">Pulse Mode</label>
+          <select
+            value={expand.pulseMode}
+            onChange={(e) => onUpdate({ ...expand, pulseMode: e.target.value as 'loop' | 'single' })}
+            className="w-full px-3 py-2 bg-dark-lighter border border-dark-border rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+          >
+            <option value="loop">Loop (repeat)</option>
+            <option value="single">Single pulse</option>
+          </select>
+          <p className="text-xs text-gray-500 mt-1">
+            {expand.pulseMode === 'loop' ? 'Pulses repeat continuously' : 'Pulse once then stop'}
+          </p>
+        </div>
+
+        {/* Attack Time */}
+        {attackConfig && (
+          <SliderField
+            label="Attack (fade in)"
+            value={expand.attack}
+            onChange={(value) => onUpdate({ ...expand, attack: value })}
+            config={attackConfig}
+          />
+        )}
+
+        {/* Decay Time */}
+        {decayConfig && (
+          <SliderField
+            label="Decay (fade out)"
+            value={expand.decay}
+            onChange={(value) => onUpdate({ ...expand, decay: value })}
+            config={decayConfig}
           />
         )}
 

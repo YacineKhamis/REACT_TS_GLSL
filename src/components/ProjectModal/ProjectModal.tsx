@@ -61,7 +61,7 @@ export function ProjectModal({
 
         {/* Modal content */}
         <Dialog.Content
-          className="fixed inset-[5vh] bg-dark rounded-lg overflow-hidden z-50 flex flex-col"
+          className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-4xl max-h-[90vh] bg-dark rounded-lg overflow-hidden z-50 flex flex-col"
           onEscapeKeyDown={onClose}
         >
           {/* Header */}
